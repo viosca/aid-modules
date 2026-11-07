@@ -1,0 +1,30 @@
+{
+  "name": "aid-modules",
+  "version": "1.0.0",
+  "description": "Standard module registry, dependency checker, and discovery contract for AI Dungeon scripts and interactive fiction",
+  "main": "src/aid-modules.js",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node scripts/build.js && node test/test_aid_modules.js"
+  },
+  "keywords": [
+    "ai-dungeon",
+    "modules",
+    "registry",
+    "plugin",
+    "contract",
+    "semver",
+    "dependency-injection",
+    "interactive-fiction"
+  ],
+  "author": "Randy Viosca (@Random_Variable on AI Dungeon)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/viosca/aid-modules.git"
+  },
+  "bugs": {
+    "url": "https://github.com/viosca/aid-modules/issues"
+  },
+  "homepage": "https://github.com/viosca/aid-modules#readme"
+}
