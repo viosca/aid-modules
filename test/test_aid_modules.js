@@ -116,8 +116,8 @@ console.log("=================================================================="
 // 8. In-Game /mods Slash Command Integration (via aid-getopt if present)
 {
     try {
-        const GetoptAID = require("../../aid-getopt/src/getopt-aid");
-        const app = GetoptAID.cli();
+        const AIDGetopt = require("../../aid-getopt/src/aid-getopt");
+        const app = AIDGetopt.cli();
         AID.slashCommand(app);
 
         const res = app.dispatch("/mods -v");
