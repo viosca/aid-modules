@@ -91,11 +91,11 @@ Registers a module following the [AMS v1.0.0 Specification](SPECIFICATION.md). I
 AID.register({
     name: "aid-getopt",
     version: "1.0.0",
-    gitHash: "f951404",
+    gitHash: "c9a8981",
     author: "Randy Viosca",
     description: "POSIX/GNU CLI flag parser & slash command router",
-    exports: GetoptAID,
-    diag: () => `GetoptAID v1.0.0 (f951404)`
+    exports: AIDGetopt,
+    diag: () => `AID-Getopt v1.0.0 (c9a8981)`
 });
 ```
 
@@ -103,7 +103,7 @@ AID.register({
 Checks if a module is registered, with optional SemVer matching (`>=1.0.0`, `^1.0.0`, `~1.0.0`).
 ```javascript
 if (AID.has("aid-getopt", ">=1.0.0")) {
-    console.log("GetoptAID is available!");
+    console.log("AID-Getopt is available!");
 }
 ```
 
