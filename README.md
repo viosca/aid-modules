@@ -1,5 +1,7 @@
 # AID-Modules 📦
 
+![aid-modules Hero Banner](assets/aid-modules-banner.jpg)
+
 [![Node.js CI](https://img.shields.io/badge/tests-100%25%20passing-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success.svg)]()
