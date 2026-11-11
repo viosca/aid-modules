@@ -5,11 +5,11 @@
 [![Node.js CI](https://img.shields.io/badge/tests-100%25%20passing-brightgreen.svg)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success.svg)]()
-[![Specification: AMS v1.0.0](https://img.shields.io/badge/spec-AMS%20v1.0.0-purple.svg)](SPECIFICATION.md)
+[![Specification: AMS v1.1.0](https://img.shields.io/badge/spec-AMS%20v1.1.0-purple.svg)](SPECIFICATION.md)
 
-> Standard module registry, dependency checker, and discovery contract for **AI Dungeon** scripts and interactive fiction.
+> Standard module registry, dependency checker, and zero-collision discovery contract for **AI Dungeon** scripts and interactive fiction.
 
-**AID-Modules** establishes an open standard for modular AI Dungeon scripting. It solves the friction of multi-creator adventures by providing transparent module registration, SemVer dependency checking, runtime discovery, and collision-proof in-game `/aid-modules` diagnostics.
+**AID-Modules** establishes an open standard for modular AI Dungeon scripting. It solves the friction of multi-creator adventures by providing transparent module registration, SemVer dependency checking, runtime discovery, the 3 Golden Rules of zero-collision scripting, and collision-proof in-game `/aid-modules` diagnostics.
 
 ---
 
@@ -18,11 +18,12 @@
 AI Dungeon's **Script Management Run Order** allows creators and players to stack multiple independent scripts sequentially (`Script 1 ➔ Script 2 ➔ Script 3`). However, until now:
 
 1. **No Standard Module Discovery:** Scripts could not determine what other libraries were loaded in the scene.
-2. **Brittle Dependency Failures:** If Script B depended on Script A, missing scripts produced cryptic `ReferenceError` crashes rather than clean, user-friendly guidance.
-3. **No Lineage Traceability:** When players encountered bugs in multi-mod adventures, authors had no way to verify which script versions were active.
-4. **Namespace Collisions:** Different creators invented conflicting globals (`state.modules`, `globalThis.MODS`, `window.plugins`).
+2. **Command Collisions & Downstream Starvation:** Scripts capturing generic commands (`/help`, `/reset`, `/diag`) starved downstream scripts of player inputs.
+3. **Brittle Dependency Failures:** If Script B depended on Script A, missing scripts produced cryptic `ReferenceError` crashes rather than clean, user-friendly guidance.
+4. **No Lineage Traceability:** When players encountered bugs in multi-mod adventures, authors had no way to verify which script versions were active.
+5. **Namespace Collisions:** Different creators invented conflicting globals (`state.modules`, `globalThis.MODS`, `window.plugins`).
 
-**AID-Modules** provides a single, zero-dependency, open standard to unite the ecosystem.
+**AID-Modules** and the [**AMS v1.1.0 Specification**](SPECIFICATION.md) provide a single, zero-dependency, open standard to unite the ecosystem.
 
 ---
 
