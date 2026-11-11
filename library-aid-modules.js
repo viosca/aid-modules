@@ -4,8 +4,8 @@
 //
 //                      AID-Modules Registry (Ver. 1.0.0)
 //
-//   Build Generation: 2026-11-11 01:01:01 UTC
-//   Git Commit:       36d1ee1
+//   Build Generation: 2026-11-11 04:21:44 UTC
+//   Git Commit:       5bedb35
 //   Repository:       https://github.com/viosca/aid-modules
 //   License:          MIT (c) Randy Viosca (@Random_Variable)
 //
@@ -44,8 +44,8 @@
     "use strict";
 
     const VERSION = "1.0.0";
-    const GIT_HASH = "36d1ee1";
-    const BUILD_TIME = "2026-11-11 01:01:01 UTC";
+    const GIT_HASH = "5bedb35";
+    const BUILD_TIME = "2026-11-11 04:21:44 UTC";
 
     /**
      * Parses a semantic version string into numeric [major, minor, patch].
@@ -167,6 +167,10 @@
                 author: spec.author ? String(spec.author).trim() : null,
                 description: spec.description ? String(spec.description).trim() : null,
                 repository: spec.repository ? String(spec.repository).trim() : null,
+                prefix: spec.prefix ? String(spec.prefix).trim() : null,
+                aliases: Array.isArray(spec.aliases) ? spec.aliases.map(String) : [],
+                helpSummary: spec.helpSummary ? String(spec.helpSummary).trim() : null,
+                help: (typeof spec.help === "function" || typeof spec.help === "string") ? spec.help : null,
                 exports: spec.exports ?? spec.api ?? null,
                 dependencies: (typeof spec.dependencies === "object" && spec.dependencies !== null)
                     ? Object.assign({}, spec.dependencies)
@@ -328,22 +332,39 @@
         }
 
         /**
-         * Binds an in-game /mods slash command to a GetoptAID router instance.
-         * @param {Object} app GetoptAID router instance
+         * Binds in-game /aid-modules slash command to an AIDGetopt router instance.
+         * @param {Object} app AIDGetopt router instance
          */
         slashCommand(app) {
             if (!app || typeof app.command !== "function") return;
             const registry = this;
-            app.command("mods", {
-                aliases: ["plugins", "modules"],
+            app.command("aid-modules", {
+                aliases: ["aid-module"],
                 description: "Display registered AI Dungeon modules and versions",
                 options: {
                     "verbose|v": false,
+                    "version": false,
                     "help|h|?": false
                 },
-                action: (flags) => {
-                    if (flags.help) {
-                        return "📦 Usage: /mods [-v (verbose descriptions)]";
+                action: (flags, operands) => {
+                    const sub = (operands[0] || "").toLowerCase();
+                    if (flags.help || sub === "help") {
+                        return [
+                            "==================================================================",
+                            "  📦 AID-Modules Registry Command Reference",
+                            "==================================================================",
+                            "Usage: /aid-modules [-v, --verbose] [--version]",
+                            "Aliases: /aid-module",
+                            "Options:",
+                            "  -v, --verbose  Display full module metadata, authors, and diagnostics",
+                            "  --version      Display aid-modules registry version and build timestamp",
+                            "  -h, --help     Display this manual",
+                            "Displays all active AMS-compliant modules registered in this adventure.",
+                            "=================================================================="
+                        ].join("\n");
+                    }
+                    if (flags.version || sub === "version") {
+                        return `📦 aid-modules v${VERSION}${GIT_HASH !== "dev" ? ` (${GIT_HASH})` : ""} [${BUILD_TIME}]`;
                     }
                     return registry.report({ verbose: flags.verbose });
                 }
@@ -363,6 +384,9 @@
         author: "Randy Viosca (@Random_Variable)",
         description: "Standard module registry and introspection contract for AI Dungeon",
         repository: "https://github.com/viosca/aid-modules",
+        prefix: "/aid-modules",
+        aliases: ["/aid-module"],
+        helpSummary: "Display registered AI Dungeon modules and versions (/aid-modules -v)",
         exports: registry,
         diag: () => `aid-modules v${VERSION}${GIT_HASH !== "dev" ? ` (${GIT_HASH})` : ""} [${BUILD_TIME}]`
     });

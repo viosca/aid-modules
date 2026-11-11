@@ -113,19 +113,31 @@ console.log("=================================================================="
     console.log("   ✔ Event bus ('register' / 'unregister') verified");
 }
 
-// 8. In-Game /mods Slash Command Integration (via aid-getopt if present)
+// 8. In-Game /aid-modules Slash Command Integration (via aid-getopt if present)
 {
     try {
         const AIDGetopt = require("../../aid-getopt/src/aid-getopt");
         const app = AIDGetopt.cli();
         AID.slashCommand(app);
 
-        const res = app.dispatch("/mods -v");
+        // Test primary canonical command
+        const res = app.dispatch("/aid-modules -v");
         assert.strictEqual(res.matched, true);
         assert(res.output.includes("Active AI Dungeon Modules"));
-        console.log("   ✔ In-game /mods slash command integrated with aid-getopt");
+
+        // Test singular alias
+        const resAlias = app.dispatch("/aid-module --version");
+        assert.strictEqual(resAlias.matched, true);
+        assert(resAlias.output.includes("aid-modules v"));
+
+        // Test help
+        const resHelp = app.dispatch("/aid-modules help");
+        assert.strictEqual(resHelp.matched, true);
+        assert(resHelp.output.includes("AID-Modules Registry Command Reference"));
+
+        console.log("   ✔ In-game /aid-modules & /aid-module slash commands integrated with aid-getopt");
     } catch (_) {
-        console.log("   (Skipping /mods router test - standalone environment)");
+        console.log("   (Skipping /aid-modules router test - standalone environment)");
     }
 }
 

@@ -109,6 +109,7 @@ When multiple copies or versions of the same module are registered (e.g. Script 
 
 ## 5. Standard In-Game Commands
 
-Participating suites should expose module status to players via:
-- **`/mods`** (aliases: `/plugins`, `/modules`): Formats a user-facing manifest of all loaded scripts, their versions, and descriptions.
-- **Diagnostic integration**: Script-specific diagnostic commands (like `/ec -i` or `/status`) should query `AID.list()` or `AID.report()` to display the active script ecosystem.
+Participating suites expose module status to players and creators via:
+- **`/aid-modules`** (alias: `/aid-module`): Formats a user-facing manifest of all loaded scripts, their versions, and descriptions (`-v` for verbose, `--version` for registry build info).
+- **Collision-Proof Design**: Low-level infrastructure modules MUST use their canonical package prefix (`/aid-modules`, `/aid-getopt`) rather than short gaming verbs (like `/mods` or `/go`) to guarantee zero namespace collisions across multi-creator adventures.
+- **Diagnostic integration**: Script-specific diagnostic commands (like `/ec -i` or `/ie status`) should query `AID.list()` or `AID.report()` to display the active script ecosystem.

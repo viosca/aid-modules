@@ -9,7 +9,7 @@
 
 > Standard module registry, dependency checker, and discovery contract for **AI Dungeon** scripts and interactive fiction.
 
-**AID-Modules** establishes an open standard for modular AI Dungeon scripting. It solves the friction of multi-creator adventures by providing transparent module registration, SemVer dependency checking, runtime discovery, and universal in-game `/mods` diagnostics.
+**AID-Modules** establishes an open standard for modular AI Dungeon scripting. It solves the friction of multi-creator adventures by providing transparent module registration, SemVer dependency checking, runtime discovery, and collision-proof in-game `/aid-modules` diagnostics.
 
 ---
 
@@ -45,8 +45,8 @@ AID-Modules operates on a **dual-layer discovery pattern**:
 │  - AID.get(name)        - Retrieves module records & exports     │
 │  - AID.has(name, range) - SemVer range checks (>=, ^, ~)         │
 │  - AID.require(name)    - Safe dependency assertion with errors  │
-│  - AID.report()         - Formatted manifest for /mods command   │
-│  - AID.slashCommand()   - Binds /mods to aid-getopt routers      │
+│  - AID.report()         - Formatted manifest for /aid-modules command │
+│  - AID.slashCommand()   - Binds /aid-modules to aid-getopt routers    │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -139,7 +139,7 @@ console.log(AID.report({ verbose: true }));
 ```
 
 ### `AID.slashCommand(app)`
-Automatically binds a `/mods` (aliases `/plugins`, `/modules`) slash command to an [`aid-getopt`](https://github.com/viosca/aid-getopt) command router!
+Automatically binds a collision-proof `/aid-modules` (alias `/aid-module`) slash command to an [`aid-getopt`](https://github.com/viosca/aid-getopt) command router!
 
 ---
 
@@ -151,7 +151,7 @@ Read the complete [AI Dungeon Module Specification (AMS v1.0.0)](SPECIFICATION.m
 
 ## 🧪 Testing
 
-AID-Modules includes automated test coverage verifying registration, SemVer ranges, upgrade precedence, dictionary backward compatibility, and `/mods` command integration:
+AID-Modules includes automated test coverage verifying registration, SemVer ranges, upgrade precedence, dictionary backward compatibility, and `/aid-modules` command integration:
 
 ```bash
 npm test
@@ -168,7 +168,7 @@ npm test
    ✔ AID.require() returns exports and provides clear error messages for missing dependencies
    ✔ AID.report() formats clean multiline manifest
    ✔ Event bus ('register' / 'unregister') verified
-   ✔ In-game /mods slash command integrated with aid-getopt
+   ✔ In-game /aid-modules & /aid-module slash commands integrated with aid-getopt
 ==================================================================
   🎉 ALL AID-Modules TESTS PASSED (100% SUCCESS)
 ==================================================================
