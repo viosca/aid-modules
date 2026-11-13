@@ -141,6 +141,24 @@ console.log("=================================================================="
     }
 }
 
+// 9. Cross-Turn state._aid_modules Discovery
+{
+    globalThis.state = {
+        _aid_modules: {
+            "entity-cards": {
+                name: "EntityCards",
+                version: "2.8.0",
+                diagText: "EntityCards Ver.2.8.0-EC"
+            }
+        }
+    };
+    assert.strictEqual(AID.has("EntityCards"), true);
+    assert.strictEqual(AID.get("EntityCards").version, "2.8.0");
+    const rep = AID.report();
+    assert(rep.includes("EntityCards Ver.2.8.0-EC"));
+    console.log("   ✔ Cross-turn and cross-script state._aid_modules discovery verified");
+}
+
 console.log("==================================================================");
 console.log("  🎉 ALL AID-Modules TESTS PASSED (100% SUCCESS)");
 console.log("==================================================================");

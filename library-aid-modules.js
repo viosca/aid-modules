@@ -4,8 +4,8 @@
 //
 //                      AID-Modules Registry (Ver. 1.0.0)
 //
-//   Build Generation: 2026-11-12 02:15:41 UTC
-//   Git Commit:       b23ad8d
+//   Build Generation: 2026-11-13 21:37:35 UTC
+//   Git Commit:       3739386
 //   Repository:       https://github.com/viosca/aid-modules
 //   License:          MIT (c) Randy Viosca (@Random_Variable)
 //
@@ -44,8 +44,8 @@
     "use strict";
 
     const VERSION = "1.0.0";
-    const GIT_HASH = "b23ad8d";
-    const BUILD_TIME = "2026-11-12 02:15:41 UTC";
+    const GIT_HASH = "3739386";
+    const BUILD_TIME = "2026-11-13 21:37:35 UTC";
 
     /**
      * Parses a semantic version string into numeric [major, minor, patch].
@@ -182,14 +182,65 @@
 
             this.modules.set(name, record);
 
-            // Backward compatibility: keep globalThis.AID_MODULES dictionary in sync
+            // Backward compatibility: keep globalThis.AID_MODULES and state._aid_modules dictionaries in sync
             if (typeof globalThis !== "undefined") {
                 globalThis.AID_MODULES ??= {};
                 globalThis.AID_MODULES[name] = record;
             }
+            const st = (typeof state !== "undefined" ? state : (typeof globalThis !== "undefined" ? globalThis.state : null));
+            if (st && typeof st === "object") {
+                st._aid_modules ??= {};
+                st._aid_modules[name] = {
+                    name: record.name,
+                    version: record.version,
+                    gitHash: record.gitHash,
+                    buildTime: record.buildTime,
+                    author: record.author,
+                    description: record.description,
+                    repository: record.repository,
+                    prefix: record.prefix,
+                    aliases: record.aliases,
+                    helpSummary: record.helpSummary,
+                    diagText: typeof record.diag === "function" ? record.diag() : `${record.name} v${record.version}`
+                };
+            }
 
             this.emit("register", record);
             return record;
+        }
+
+        /**
+         * Synchronizes pre-existing or dynamically added module records from globalThis.AID_MODULES and state._aid_modules.
+         * Ensures modules loaded down-waterfall in subsequent script slots or on previous turns are discovered.
+         * @returns {Registry}
+         */
+        sync() {
+            if (typeof globalThis !== "undefined" && globalThis.AID_MODULES) {
+                for (const [key, rawRec] of Object.entries(globalThis.AID_MODULES)) {
+                    if (rawRec && typeof rawRec === "object") {
+                        const recKey = (rawRec.name || key).toLowerCase().trim();
+                        if (!this.modules.has(recKey)) {
+                            this.register(rawRec);
+                        }
+                    }
+                }
+            }
+            const st = (typeof state !== "undefined" ? state : (typeof globalThis !== "undefined" ? globalThis.state : null));
+            if (st && st._aid_modules && typeof st._aid_modules === "object") {
+                for (const [key, rawRec] of Object.entries(st._aid_modules)) {
+                    if (rawRec && typeof rawRec === "object") {
+                        const recKey = (rawRec.name || key).toLowerCase().trim();
+                        if (!this.modules.has(recKey)) {
+                            const spec = Object.assign({}, rawRec);
+                            if (spec.diagText && !spec.diag) {
+                                spec.diag = () => spec.diagText;
+                            }
+                            this.register(spec);
+                        }
+                    }
+                }
+            }
+            return this;
         }
 
         /**
@@ -203,6 +254,10 @@
             if (typeof globalThis !== "undefined" && globalThis.AID_MODULES) {
                 delete globalThis.AID_MODULES[key];
             }
+            const st = (typeof state !== "undefined" ? state : (typeof globalThis !== "undefined" ? globalThis.state : null));
+            if (st && st._aid_modules) {
+                delete st._aid_modules[key];
+            }
             if (removed) this.emit("unregister", key);
             return removed;
         }
@@ -213,6 +268,7 @@
          * @returns {Object|null}
          */
         get(name) {
+            this.sync();
             const key = String(name || "").toLowerCase().trim();
             return this.modules.get(key) || null;
         }
@@ -224,6 +280,7 @@
          * @returns {boolean}
          */
         has(name, range) {
+            this.sync();
             const rec = this.get(name);
             if (!rec) return false;
             if (!range) return true;
@@ -237,6 +294,7 @@
          * @returns {*} Module exports
          */
         require(name, range) {
+            this.sync();
             const key = String(name || "").toLowerCase().trim();
             const rec = this.get(key);
             if (!rec) {
@@ -253,6 +311,7 @@
          * @returns {Array<Object>}
          */
         list() {
+            this.sync();
             return Array.from(this.modules.values());
         }
 
@@ -261,6 +320,7 @@
          * @returns {Array<string>}
          */
         names() {
+            this.sync();
             return Array.from(this.modules.keys());
         }
 
@@ -271,6 +331,7 @@
          * @returns {string} Formatted multiline report
          */
         report(options = {}) {
+            this.sync();
             const isVerbose = Boolean(options.verbose);
             const list = this.list();
 
