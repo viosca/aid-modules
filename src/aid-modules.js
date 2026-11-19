@@ -219,6 +219,42 @@
                     }
                 }
             }
+            const sc = (typeof storyCards !== "undefined" && Array.isArray(storyCards))
+                ? storyCards
+                : (typeof globalThis !== "undefined" && Array.isArray(globalThis.storyCards) ? globalThis.storyCards : null);
+            if (sc) {
+                for (const card of sc) {
+                    if (!card || typeof card !== "object" || typeof card.title !== "string") continue;
+                    const title = card.title;
+                    const entry = typeof card.entry === "string" ? card.entry : "";
+                    if ((title.includes("Configure") && (title.includes("Inner Entity") || title.includes("Inner Self"))) && !this.modules.has("inner-entity")) {
+                        const verMatch = entry.match(/Inner\s+Entity\s+build\s+([^\s(]+)(?:\s+\[([^\]]+)\])?/i);
+                        const verStr = verMatch ? verMatch[1] : "Ver.2_8_0-IE";
+                        const flavorStr = (verMatch && verMatch[2]) ? ` [${verMatch[2]}]` : "";
+                        this.register({
+                            name: "inner-entity",
+                            version: "2.8.0",
+                            prefix: "/ie",
+                            aliases: ["/is"],
+                            description: "Character mind simulation, monologues, and personality tracking",
+                            helpSummary: "NPC mind simulation, internal monologues, and cognitive state",
+                            diag: () => `Inner Entity ${verStr}${flavorStr}`
+                        });
+                    } else if ((title === "Configure \nEntity Cards" || title === "Configure \nAuto-Cards" || title === "Edit to enable \nAuto-Cards") && !this.modules.has("entitycards") && !this.modules.has("entity-cards")) {
+                        const verMatch = entry.match(/Version:\s*([^\n\r]+)/i);
+                        const verStr = verMatch ? verMatch[1].trim() : "Ver.2.8.0-EC";
+                        this.register({
+                            name: "EntityCards",
+                            version: "2.8.0",
+                            prefix: "/ec",
+                            aliases: ["/ac"],
+                            description: "Autonomous story cards and named entity recognition for characters & lore",
+                            helpSummary: "Autonomous story cards and lore generation (/ec <title>, /ec redo, /ec info)",
+                            diag: () => `EntityCards ${verStr}`
+                        });
+                    }
+                }
+            }
             return this;
         }
 
