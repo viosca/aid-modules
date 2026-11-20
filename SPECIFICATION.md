@@ -228,7 +228,67 @@ Output Turn:    onOutput (Script 1)       ──> onOutput (Script 2)       ─�
 
 ---
 
-## 7. Reference Implementations
+## 7. Cross-Slot Coordination Protocol (CSCP v1.1.0)
+
+While intra-VM scripts communicate via `globalThis.AID_MODULES`, multi-script scenarios in AI Dungeon execute across **isolated QuickJS Virtual Machines** where `globalThis` and `state` are siloed per slot. The **Cross-Slot Coordination Protocol (CSCP v1.1.0)** bridges these isolated VMs using a steganographic StoryCard data bus and dynamic DLL hydration.
+
+### 7.1 Architecture: The 16-Variation-Selector StoryCard DLL Wire Format
+
+To provide downstream slots with full CSCP client capabilities without requiring each creator to copy thousands of bytes of boilerplate client code, `aid-modules` compiles a minified, git-hashed client library into a binary **Dynamic Link Library (DLL)** and embeds it invisibly into a dedicated control story card:
+
+1. **Carrier Card Resolution:**
+   - Dedicated Carrier: `aid-modules` creates or targets a story card titled `Configure \nSystem Modules`.
+   - Shared Fallback: If absent, legacy control cards (`Configure \nAuto-Cards`, `Configure \nEntity Cards`) can carry the packet.
+2. **Invisible 16-Variation-Selector Encoding:**
+   - The compiled client JavaScript is mapped nibble-by-nibble (4 bits each, values `0x0` through `0xF`) to Unicode Variation Selectors:
+     - `0x0` $\to$ `\uFE00` (Variation Selector-1)
+     - `0x1` $\to$ `\uFE01` (Variation Selector-2)
+     - ...
+     - `0xF` $\to$ `\uFE0F` (Variation Selector-16)
+   - The payload is wrapped with delimiters: `\u200D\uFE00\u200D` ... `\u200D\uFE0F\u200D`.
+   - Because Variation Selectors are invisible zero-width formatting characters, they add zero visible clutter to story cards and never trigger as LLM lore keys.
+3. **Hydration via Indirect Eval:**
+   - Downstream slots (such as `aid-getopt`, `Entity-Cards`, or `Inner-Entity`) include a lightweight bootstrapper (`loadCSCP()`).
+   - `loadCSCP()` scans `storyCards` for the delimiter, unpacks the nibbles into JavaScript source, and evaluates it in global scope using **indirect eval** `(0, eval)(code)`.
+   - In QuickJS / `<isolated-vm>` environments, indirect eval guarantees global execution without leaking local lexical scope.
+   - The evaluated DLL assigns `globalThis.AID_CSCP` and returns the client instance.
+
+### 7.2 Packet Wire Format & Capability Negotiation
+
+CSCP maintains a synchronized state packet across slots via `storyCards`:
+
+```json
+{
+  "v": 1,
+  "t": "14:28",
+  "p": "context",
+  "mode": "dedicated",
+  "order": ["slot-aid-modules", "slot-entity-cards", "slot-inner-entity"],
+  "lastOrder": ["slot-aid-modules", "slot-entity-cards", "slot-inner-entity"],
+  "owners": {
+    "aid-modules": { "slotUid": "slot-aid-modules", "moduleName": "aid-modules" },
+    "aid-getopt": { "slotUid": "slot-aid-modules", "moduleName": "aid-modules" },
+    "entity-cards": { "slotUid": "slot-entity-cards", "moduleName": "entity-cards" },
+    "inner-entity": { "slotUid": "slot-inner-entity", "moduleName": "inner-entity" }
+  },
+  "collisions": [],
+  "slots": { ... },
+  "modules": { ... }
+}
+```
+
+#### Capability Negotiation Rules:
+- **`provides`:** A module declares capabilities it can fulfill (e.g. `["entity-cards"]`, `["inner-entity"]`).
+- **First-Slot Claims Ownership:** The first slot in run order declaring a capability is registered as its primary `owner` in `p.owners[capability]`.
+- **Downstream Yielding:** If a subsequent slot declares the same capability, CSCP flags a collision in `p.collisions` and assigns the capability to `res.yielded`.
+- **Double Engine Prevention:** Downstream modules check `res.yielded`:
+  - When `Inner-Entity` yields `"entity-cards"`, it sets `_AID_DOUBLE_ENGINE_DETECTED = true` and bypasses its bundled card engine, but maintains **100% active NPC cognition**.
+  - When standalone `Entity-Cards` runs downstream of an All-in-One build, it yields `"entity-cards"` and enters a passive bypass state.
+- **Dynamic Reconfiguration:** If a player drags scripts or deletes a slot mid-adventure, `turnKey` resets the ownership table, and capabilities re-bind seamlessly to remaining slots on the next turn.
+
+---
+
+## 8. Reference Implementations
 
 The following open-source repositories provide fully compliant reference implementations:
 
@@ -242,6 +302,6 @@ The following open-source repositories provide fully compliant reference impleme
 
 ---
 
-## 8. License
+## 9. License
 
 This specification is released under the **MIT License**. It may be freely used, implemented, and extended by any AI Dungeon scenario creator or developer.
