@@ -230,6 +230,9 @@ Output Turn:    onOutput (Script 1)       ──> onOutput (Script 2)       ─�
 
 ## 7. Cross-Slot Coordination Protocol (CSCP v1.1.0)
 
+> [!TIP]
+> For the dedicated standalone developer specification, 25-line bootstrapper, and wire format guide, see **[CSCP_SPECIFICATION.md](CSCP_SPECIFICATION.md)**.
+
 While intra-VM scripts communicate via `globalThis.AID_MODULES`, multi-script scenarios in AI Dungeon execute across **isolated QuickJS Virtual Machines** where `globalThis` and `state` are siloed per slot. The **Cross-Slot Coordination Protocol (CSCP v1.1.0)** bridges these isolated VMs using a steganographic StoryCard data bus and dynamic DLL hydration.
 
 ### 7.1 Architecture: The 16-Variation-Selector StoryCard DLL Wire Format

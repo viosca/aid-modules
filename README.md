@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-success.svg)]()
 [![Specification: AMS v1.1.0](https://img.shields.io/badge/spec-AMS%20v1.1.0-purple.svg)](SPECIFICATION.md)
+[![Protocol: CSCP v1.1.0](https://img.shields.io/badge/protocol-CSCP%20v1.1.0-blue.svg)](CSCP_SPECIFICATION.md)
 
 > Standard module registry, dependency checker, and zero-collision discovery contract for **AI Dungeon** scripts and interactive fiction.
 
@@ -23,7 +24,7 @@ AI Dungeon's **Script Management Run Order** allows creators and players to stac
 4. **No Lineage Traceability:** When players encountered bugs in multi-mod adventures, authors had no way to verify which script versions were active.
 5. **Namespace Collisions:** Different creators invented conflicting globals (`state.modules`, `globalThis.MODS`, `window.plugins`).
 
-**AID-Modules** and the [**AMS v1.1.0 Specification**](SPECIFICATION.md) provide a single, zero-dependency, open standard to unite the ecosystem.
+**AID-Modules**, the [**AMS v1.1.0 Specification**](SPECIFICATION.md), and the [**CSCP v1.1.0 Specification**](CSCP_SPECIFICATION.md) provide a complete, zero-dependency, open standard to unite the ecosystem.
 
 ---
 
@@ -144,9 +145,10 @@ Automatically binds a collision-proof `/aid-modules` (alias `/aid-module`) slash
 
 ---
 
-## 📜 Full Specification
+## 📜 Specifications
 
-Read the complete [AI Dungeon Module Specification (AMS v1.0.0)](SPECIFICATION.md) for full schema definitions, SemVer rules, and lifecycle details.
+- **[AI Dungeon Module Specification (AMS v1.1.0)](SPECIFICATION.md):** Module records, SemVer dependency checking, the 3 Golden Rules of zero-collision scripting, and intra-VM registries.
+- **[Cross-Slot Coordination Protocol Specification (CSCP v1.1.0)](CSCP_SPECIFICATION.md):** Inter-VM steganographic data bus, 16-Variation-Selector StoryCard DLL hydration, capability negotiation, and multi-script waterfall coordination.
 
 ---
 
