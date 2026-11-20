@@ -133,7 +133,12 @@ console.log("=================================================================="
         // Test help
         const resHelp = app.dispatch("/aid-modules help");
         assert.strictEqual(resHelp.matched, true);
-        assert(resHelp.output.includes("AID-Modules Registry Command Reference"));
+        assert(resHelp.output.includes("AID-Modules & CSCP Command Reference"));
+
+        // Test CSCP card-mode switch via slash command
+        const resMode = app.dispatch("/aid-modules --card-mode C");
+        assert.strictEqual(resMode.matched, true);
+        assert(resMode.output.includes("Option C"));
 
         console.log("   ✔ In-game /aid-modules & /aid-module slash commands integrated with aid-getopt");
     } catch (_) {
@@ -145,17 +150,17 @@ console.log("=================================================================="
 {
     globalThis.state = {
         _aid_modules: {
-            "entity-cards": {
-                name: "EntityCards",
-                version: "2.8.0",
-                diagText: "EntityCards Ver.2.8.0-EC"
+            "weather-sim": {
+                name: "WeatherSim",
+                version: "2.1.0",
+                diagText: "WeatherSim Ver.2.1.0"
             }
         }
     };
-    assert.strictEqual(AID.has("EntityCards"), true);
-    assert.strictEqual(AID.get("EntityCards").version, "2.8.0");
+    assert.strictEqual(AID.has("WeatherSim"), true);
+    assert.strictEqual(AID.get("WeatherSim").version, "2.1.0");
     const rep = AID.report();
-    assert(rep.includes("EntityCards Ver.2.8.0-EC"));
+    assert(rep.includes("WeatherSim Ver.2.1.0"));
     console.log("   ✔ Cross-turn and cross-script state._aid_modules discovery verified");
 }
 

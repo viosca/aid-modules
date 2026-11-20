@@ -1,11 +1,11 @@
 {
   "name": "aid-modules",
-  "version": "1.0.0",
-  "description": "Standard module registry, dependency checker, and discovery contract for AI Dungeon scripts and interactive fiction",
+  "version": "1.1.0",
+  "description": "Standard module registry, CSCP cross-slot server/client, and discovery contract for AI Dungeon scripts",
   "main": "src/aid-modules.js",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node scripts/build.js && node test/test_aid_modules.js"
+    "test": "node scripts/build.js && node test/test_aid_modules.js && node test/test_cscp.js"
   },
   "keywords": [
     "ai-dungeon",
