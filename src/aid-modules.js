@@ -371,9 +371,6 @@
                 return inText;
             }
             if (phase === "context") {
-                if (st && st._aid_modules_cmd_out) {
-                    return ["", true];
-                }
                 return [inText, inStop];
             }
             if (phase === "output") {
@@ -578,6 +575,7 @@
     }, { skipCSCP: true });
 
     if (typeof globalThis !== "undefined") {
+        globalThis.stop ??= false;
         globalThis.AID = registry;
     }
 
