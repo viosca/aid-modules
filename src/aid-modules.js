@@ -7,8 +7,8 @@
  * Cross-Slot Coordination Protocol (CSCP v1.0.0):
  * - Standardized registration, discovery, and SemVer dependency checking.
  * - Cross-VM / Cross-Slot coordination via zero-width storyCard steganography.
- * - Supports Option B (Dedicated "Configure \nSystem Modules" dashboard card)
- *   and configurable Option C (Piggyback on existing configuration cards).
+ * - Supports "dedicated" mode (Dedicated "Configure \nSystem Modules" dashboard card)
+ *   and configurable "shared" mode (shares/piggybacks on existing config cards).
  * - Seamless unification of Multi-Slot Waterfalls and All-in-One Monoliths.
  * - 100% domain-agnostic: zero hardcoded knowledge of external gameplay modules.
  *
@@ -39,6 +39,18 @@
     const HANDSHAKE_TOKEN = "\u200D\u200B\u200C\u200B\u200D";
     const DEDICATED_CARD_TITLE = "Configure \nSystem Modules";
     const DEFAULT_CARD_KEYS = "github.com/viosca/aid-modules";
+
+    const DEDICATED_ALIASES = ["dedicated", "dashboard", "visible", "true", "t", "yes", "y", "1", "on", "d"];
+    const SHARED_ALIASES = ["shared", "piggyback", "stealth", "headless", "false", "f", "no", "n", "0", "off", "s"];
+
+    function normalizeCardMode(val) {
+        if (typeof val === "boolean") return val ? "dedicated" : "shared";
+        if (val === null || val === undefined) return null;
+        const clean = String(val).toLowerCase().replace(/[^a-z0-9]/g, "");
+        if (SHARED_ALIASES.includes(clean)) return "shared";
+        if (DEDICATED_ALIASES.includes(clean)) return "dedicated";
+        return null;
+    }
 
     function serialize(obj) {
         try {
@@ -140,13 +152,9 @@
 
         configure(opts = {}) {
             if (!opts || typeof opts !== "object") return this;
-            if (opts.cardMode) {
-                const m = String(opts.cardMode).toLowerCase().trim();
-                if (m === "c" || m === "piggyback" || m === "false") {
-                    this._config.cardMode = "C";
-                } else if (m === "b" || m === "dedicated" || m === "true") {
-                    this._config.cardMode = "B";
-                }
+            if (opts.cardMode !== undefined) {
+                const norm = normalizeCardMode(opts.cardMode);
+                if (norm) this._config.cardMode = norm;
             }
             if (typeof opts.pinCard === "boolean") {
                 this._config.pinCard = opts.pinCard;
@@ -168,12 +176,12 @@
             return this._vmSlotUid;
         }
 
-        createEmptyPacket(mode = "B") {
+        createEmptyPacket(mode = "dedicated") {
             return {
                 v: CSCP_VERSION,
                 t: getTurnKey(),
                 p: "init",
-                mode: mode === "C" ? "C" : "B",
+                mode: normalizeCardMode(mode) || "dedicated",
                 order: [],
                 lastOrder: [],
                 owners: {},
@@ -184,17 +192,15 @@
         }
 
         parseDedicatedCardEntry(card) {
-            const result = { dedicated: true, pin: this._config.pinCard };
+            const result = { mode: "dedicated", pin: this._config.pinCard };
             if (!card || typeof card.entry !== "string") return result;
-            const dedMatch = card.entry.match(/Dedicated\s+System\s+Modules\s+card\s*:\s*([^\n\r]+)/i);
-            if (dedMatch) {
-                const val = dedMatch[1].toLowerCase().replace(/[^a-z0-9]/g, "");
-                if (["false", "f", "no", "n", "0", "off", "piggyback", "c"].includes(val)) {
-                    result.dedicated = false;
-                } else if (["true", "t", "yes", "y", "1", "on", "dedicated", "b"].includes(val)) {
-                    result.dedicated = true;
-                }
+
+            const modeMatch = card.entry.match(/(?:Carrier\s+card\s+mode|(?:Show|Dedicated)\s+System\s+Modules\s+card)\s*:\s*([^\n\r]+)/i);
+            if (modeMatch) {
+                const norm = normalizeCardMode(modeMatch[1]);
+                if (norm) result.mode = norm;
             }
+
             const pinMatch = card.entry.match(/Pin\s+this\s+config\s+card\s*:\s*([^\n\r]+)/i);
             if (pinMatch) {
                 const val = pinMatch[1].toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -214,32 +220,29 @@
                 if (dedCard) {
                     const parsed = this.parseDedicatedCardEntry(dedCard);
                     this._config.pinCard = parsed.pin;
-                    if (!parsed.dedicated) {
-                        this._config.cardMode = "C";
-                        return "C";
+                    if (parsed.mode === "shared") {
+                        this._config.cardMode = "shared";
+                        return "shared";
                     }
-                    if (this._config.cardMode === "C") {
-                        return "C";
+                    if (this._config.cardMode === "shared") {
+                        return "shared";
                     }
-                    return "B";
+                    return "dedicated";
                 }
             }
-            if (this._config.cardMode === "C" || this._config.cardMode === "B") {
+            if (this._config.cardMode === "shared" || this._config.cardMode === "dedicated") {
                 return this._config.cardMode;
             }
             if (typeof globalThis !== "undefined" && globalThis.MainSettings && globalThis.MainSettings.SystemModules) {
                 const sm = globalThis.MainSettings.SystemModules;
-                if (sm.DEDICATED_CARD === false || sm.CARD_MODE === "C" || sm.CARD_MODE === "piggyback") {
-                    return "C";
-                }
-                if (sm.DEDICATED_CARD === true || sm.CARD_MODE === "B" || sm.CARD_MODE === "dedicated") {
-                    return "B";
-                }
+                const norm = normalizeCardMode(sm.CARD_MODE ?? sm.DEDICATED_CARD);
+                if (norm) return norm;
             }
-            if (existingPacket && (existingPacket.mode === "C" || existingPacket.mode === "B")) {
-                return existingPacket.mode;
+            if (existingPacket && existingPacket.mode) {
+                const norm = normalizeCardMode(existingPacket.mode);
+                if (norm) return norm;
             }
-            return "B";
+            return "dedicated";
         }
 
         read() {
@@ -249,6 +252,7 @@
                     if (c && typeof c === "object" && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
                         const decoded = deserialize(c.keys);
                         if (decoded && typeof decoded === "object" && decoded.v === CSCP_VERSION) {
+                            decoded.mode = normalizeCardMode(decoded.mode) || "dedicated";
                             if (typeof globalThis !== "undefined") {
                                 globalThis._AID_CSCP_PACKET = decoded;
                             }
@@ -270,7 +274,7 @@
             const allSlotUids = [...new Set([...orderedUids, ...Object.keys(packet.slots || {})])];
             const lines = [
                 `=== AID-Modules System Bus (CSCP v${CSCP_VERSION}.0) ===`,
-                `> Dedicated System Modules card: ${packet.mode !== "C"}`,
+                `> Carrier card mode: ${packet.mode === "shared" ? "shared" : "dedicated"}`,
                 `> Pin this config card: ${Boolean(this._config.pinCard)}`,
                 `> Turn Key: ${packet.t || "0:0"} (Phase: ${packet.p || "init"})`,
                 `> Active Script Slots (${allSlotUids.length} detected):`
@@ -312,7 +316,7 @@
             const description = [
                 "Cross-Slot Coordination Protocol (CSCP) active.",
                 "Scripts run in waterfall order from Slot 1 downward.",
-                "To hide this card and piggyback on an existing configuration card (Option C), change 'Dedicated System Modules card: true' to 'false' above."
+                "To hide this card and share/piggyback the registry stamp on an existing configuration card, change 'Carrier card mode: dedicated' to 'shared' (or 'piggyback' / 'stealth') above."
             ].join("\n");
 
             return {
@@ -321,7 +325,7 @@
             };
         }
 
-        findPiggybackCarrier(cards) {
+        findSharedCarrier(cards) {
             if (!Array.isArray(cards) || cards.length === 0) return null;
             for (const c of cards) {
                 if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
@@ -363,7 +367,7 @@
                 ? removeStoryCard
                 : (typeof globalThis !== "undefined" && typeof globalThis.removeStoryCard === "function" ? globalThis.removeStoryCard : null);
 
-            if (mode === "B") {
+            if (mode === "dedicated") {
                 let dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
                 let dedCard = dedIdx !== -1 ? cards[dedIdx] : null;
                 const allowCreate = options.createCard !== undefined ? options.createCard : this._config.autoCreateCard;
@@ -400,7 +404,7 @@
                         }
                     }
                 } else {
-                    const carrier = this.findPiggybackCarrier(cards);
+                    const carrier = this.findSharedCarrier(cards);
                     if (carrier) {
                         carrier.keys = strip(carrier.keys || "") + encoded;
                     }
@@ -414,7 +418,7 @@
                         cards.splice(dedIdx, 1);
                     }
                 }
-                const carrier = this.findPiggybackCarrier(cards);
+                const carrier = this.findSharedCarrier(cards);
                 if (carrier) {
                     for (const c of cards) {
                         if (c && c !== carrier && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
@@ -607,6 +611,7 @@
         bus.strip = strip;
         bus.hasStamp = hasStamp;
         bus.getTurnKey = getTurnKey;
+        bus.normalizeCardMode = normalizeCardMode;
         return bus;
     })();
 
@@ -688,13 +693,6 @@
             }
         }
 
-        /**
-         * Registers a module adhering to AMS v1.1.0 and announces it to the CSCP bus.
-         *
-         * @param {Object} spec Module specification
-         * @param {Object} [options] Registration options
-         * @returns {Object} Stored module record
-         */
         register(spec, options = {}) {
             if (!spec || typeof spec !== "object") {
                 throw new Error("[AID-Modules] Module spec must be an object");
@@ -783,14 +781,6 @@
             return record;
         }
 
-        /**
-         * Synchronizes module records from globalThis.AID_MODULES, per-slot state._aid_modules,
-         * and the cross-slot CSCP registry in storyCards.
-         * Completely module-agnostic: contains zero hardcoded knowledge of external scripts.
-         *
-         * @param {string} [phase] Optional current phase ("input", "context", "output")
-         * @returns {Registry}
-         */
         sync(phase) {
             if (typeof globalThis !== "undefined" && globalThis.AID_MODULES) {
                 for (const [key, rawRec] of Object.entries(globalThis.AID_MODULES)) {
@@ -819,7 +809,6 @@
                 }
             }
 
-            // Read Cross-Slot CSCP Registry Packet from storyCards
             const packet = this.cscp.read();
             if (packet && packet.modules && typeof packet.modules === "object") {
                 for (const [key, rawRec] of Object.entries(packet.modules)) {
@@ -832,7 +821,6 @@
                             }
                             this.register(spec, { skipCSCP: true });
                         } else {
-                            // Update slotUid/buildType metadata from CSCP if remote slot
                             const existing = this.modules.get(recKey);
                             if (rawRec.slotUid) existing.slotUid = rawRec.slotUid;
                             if (rawRec.buildType) existing.buildType = rawRec.buildType;
@@ -851,15 +839,6 @@
             return this;
         }
 
-        /**
-         * Executes an AI Dungeon lifecycle hook ("input", "context", "output") for the
-         * AID-Modules CSCP server slot, keeping the waterfall order and Option B/C card synced.
-         *
-         * @param {"input"|"context"|"output"} phase Hook phase
-         * @param {string} [inText] Input text
-         * @param {boolean} [inStop] Stop flag (for context hook)
-         * @returns {*}
-         */
         hook(phase, inText, inStop) {
             this.sync(phase);
             if (phase === "context") {
@@ -924,13 +903,6 @@
             return Array.from(this.modules.keys());
         }
 
-        /**
-         * Generates a formatted summary report of all registered modules and CSCP slot waterfall state.
-         *
-         * @param {Object} [options]
-         * @param {boolean} [options.verbose=false] Include slot waterfall, CSCP carrier mode, and descriptions
-         * @returns {string} Formatted multiline report
-         */
         report(options = {}) {
             this.sync();
             const isVerbose = Boolean(options.verbose);
@@ -961,9 +933,9 @@
             if (packet) {
                 const collisions = Array.isArray(packet.collisions) ? packet.collisions : [];
                 if (isVerbose) {
-                    const modeLabel = packet.mode === "C"
-                        ? "Option C (Piggyback Zero-Width Stamp)"
-                        : "Option B (Dedicated System Modules Card)";
+                    const modeLabel = packet.mode === "shared"
+                        ? "shared (Piggyback Zero-Width Stamp)"
+                        : "dedicated (Dedicated System Modules Card)";
                     const orderedUids = (Array.isArray(packet.lastOrder) && packet.lastOrder.length >= (packet.order || []).length)
                         ? packet.lastOrder
                         : (packet.order || []);
@@ -1016,10 +988,6 @@
             }
         }
 
-        /**
-         * Binds in-game /aid-modules slash command to an AIDGetopt router instance.
-         * @param {Object} app AIDGetopt router instance
-         */
         slashCommand(app) {
             if (!app || typeof app.command !== "function") return;
             const registry = this;
@@ -1040,12 +1008,13 @@
                             "==================================================================",
                             "  📦 AID-Modules & CSCP Command Reference",
                             "==================================================================",
-                            "Usage: /aid-modules [-v, --verbose] [--cscp] [--card-mode <B|C>] [--version]",
+                            "Usage: /aid-modules [-v, --verbose] [--cscp] [--card-mode <dedicated|shared>] [--version]",
                             "Aliases: /aid-module",
                             "Options:",
                             "  -v, --verbose        Display full module metadata and CSCP slot waterfall",
                             "  --cscp               Display CSCP cross-slot bus and carrier status",
-                            "  -m, --card-mode <m>  Set CSCP carrier mode: 'B' (dedicated card) or 'C' (piggyback)",
+                            "  -m, --card-mode <m>  Set CSCP carrier mode: 'dedicated' (aliases: dashboard, visible)",
+                            "                       or 'shared' (aliases: piggyback, stealth, headless)",
                             "  --version            Display aid-modules registry version and build timestamp",
                             "  -h, --help           Display this manual",
                             "Displays all active AMS & CSCP-compliant modules across all adventure slots.",
@@ -1059,11 +1028,11 @@
                         const targetMode = String(flags["card-mode"]).toLowerCase().trim();
                         registry.cscp.configure({ cardMode: targetMode });
                         const pkt = registry.cscp.read() || registry.cscp.createEmptyPacket();
-                        pkt.mode = registry.cscp._config.cardMode || "B";
-                        registry.cscp.write(pkt, { createCard: pkt.mode === "B" });
-                        const desc = pkt.mode === "C"
-                            ? "Option C (Piggyback Zero-Width Stamp on existing config card)"
-                            : "Option B (Dedicated 'Configure System Modules' card)";
+                        pkt.mode = registry.cscp._config.cardMode || "dedicated";
+                        registry.cscp.write(pkt, { createCard: pkt.mode === "dedicated" });
+                        const desc = pkt.mode === "shared"
+                            ? "shared (Piggyback Zero-Width Stamp on existing configuration card)"
+                            : "dedicated (Dedicated 'Configure System Modules' dashboard card)";
                         return `📦 [AID-Modules CSCP]: Carrier mode switched to ${desc}.`;
                     }
                     return registry.report({ verbose: Boolean(flags.verbose || flags.cscp) });
@@ -1074,7 +1043,6 @@
 
     const registry = new Registry();
 
-    // Register self
     registry.register({
         name: "aid-modules",
         version: VERSION,

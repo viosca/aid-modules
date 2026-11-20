@@ -37,7 +37,7 @@ const serverCode = fs.readFileSync(LIB_MODULES_PATH, "utf8");
         v: 1,
         t: "42:84",
         p: "context",
-        mode: "B",
+        mode: "dedicated",
         meta: "🎭 Unicode & Emoji Safe — αβγ",
         slots: {
             "slot-1a2b": { uid: "slot-1a2b", buildType: "all-in-one", provides: ["cap-a", "cap-b"] }
@@ -56,7 +56,19 @@ const serverCode = fs.readFileSync(LIB_MODULES_PATH, "utf8");
     // Round-trip decode
     const decoded = CSCPClient.deserialize(carrier);
     assert.deepStrictEqual(decoded, payload);
-    console.log("   ✔ CSCP serialize(), deserialize(), strip(), and Unicode round-trip verified");
+
+    // Mode alias normalization verification
+    assert.strictEqual(CSCPClient.normalizeCardMode("dedicated"), "dedicated");
+    assert.strictEqual(CSCPClient.normalizeCardMode("dashboard"), "dedicated");
+    assert.strictEqual(CSCPClient.normalizeCardMode("visible"), "dedicated");
+    assert.strictEqual(CSCPClient.normalizeCardMode(true), "dedicated");
+    assert.strictEqual(CSCPClient.normalizeCardMode("shared"), "shared");
+    assert.strictEqual(CSCPClient.normalizeCardMode("piggyback"), "shared");
+    assert.strictEqual(CSCPClient.normalizeCardMode("stealth"), "shared");
+    assert.strictEqual(CSCPClient.normalizeCardMode("headless"), "shared");
+    assert.strictEqual(CSCPClient.normalizeCardMode(false), "shared");
+
+    console.log("   ✔ CSCP serialize(), deserialize(), strip(), aliases, and Unicode round-trip verified");
 }
 
 // Helper to run code in an isolated QuickJS-like VM context with per-slot state
@@ -146,15 +158,15 @@ function createSlotVM(sharedCards, sharedInfo, sharedHistory, slotState) {
 
         const report = vm1.sandbox.AID.report({ verbose: true });
         assert(report.includes("Active AI Dungeon Modules (3 loaded)"));
-        assert(report.includes("Option B (Dedicated System Modules Card)"));
+        assert(report.includes("dedicated (Dedicated System Modules Card)"));
         assert(report.includes("weather-engine v2.1.0"));
         assert(report.includes("quest-journal v1.4.2"));
     }
 
-    console.log("   ✔ Multi-VM discovery & Option B Dedicated System Modules dashboard verified");
+    console.log("   ✔ Multi-VM discovery & Dedicated System Modules dashboard verified");
 }
 
-// 4. Transition from Option B (Dedicated Card) to Option C (Piggyback Mode)
+// 4. Transition from Dedicated Card Mode to Shared (Piggyback) Mode
 {
     const existingConfigCard = {
         title: "Configure \nCustom Engine",
@@ -168,27 +180,27 @@ function createSlotVM(sharedCards, sharedInfo, sharedHistory, slotState) {
     const sharedHistory = [];
     const stateSlot1 = {};
 
-    // Start in Option B (default)
+    // Start in "dedicated" mode (default)
     const vm1 = createSlotVM(sharedCards, sharedInfo, sharedHistory, stateSlot1);
     vm.runInContext(serverCode, vm1.ctx);
     vm1.sandbox.AID.hook("context", "Context", false);
 
     assert.strictEqual(sharedCards.some(c => c.title === "Configure \nSystem Modules"), true, "Dedicated card initially present");
 
-    // Player edits the dedicated card in-game: sets "Dedicated System Modules card: false"
+    // Player edits the dedicated card in-game: sets "Carrier card mode: shared" (or "piggyback" / "stealth")
     const dedCard = sharedCards.find(c => c.title === "Configure \nSystem Modules");
-    dedCard.entry = dedCard.entry.replace("Dedicated System Modules card: true", "Dedicated System Modules card: false");
+    dedCard.entry = dedCard.entry.replace("Carrier card mode: dedicated", "Carrier card mode: shared");
 
     // Next hook invocation detects the toggle, removes the dedicated card, and piggybacks onto "Configure \nCustom Engine"
     vm1.sandbox.AID.hook("output", "Output");
 
-    assert.strictEqual(sharedCards.some(c => c.title === "Configure \nSystem Modules"), false, "Dedicated card must be removed when switched to Option C");
-    assert.strictEqual(CSCPClient.hasStamp(existingConfigCard.keys), true, "Stamp must be transferred to existing Configure card in Option C");
+    assert.strictEqual(sharedCards.some(c => c.title === "Configure \nSystem Modules"), false, "Dedicated card must be removed when switched to shared mode");
+    assert.strictEqual(CSCPClient.hasStamp(existingConfigCard.keys), true, "Stamp must be transferred to existing Configure card in shared mode");
     assert.strictEqual(CSCPClient.strip(existingConfigCard.keys), "custom-engine-key", "Original visible keys on carrier card must remain intact");
 
     const pkt = CSCPClient.deserialize(existingConfigCard.keys);
-    assert.strictEqual(pkt.mode, "C");
-    console.log("   ✔ Option B -> Option C live toggle and zero-extra-card piggybacking verified");
+    assert.strictEqual(pkt.mode, "shared");
+    console.log("   ✔ Dedicated -> Shared (piggyback) live toggle and zero-extra-card carrier verified");
 }
 
 // 5. Monolith (All-in-One) vs. Standalone Capability Collision, Live Slot Reordering, and Slot Removal

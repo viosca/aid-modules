@@ -135,10 +135,18 @@ console.log("=================================================================="
         assert.strictEqual(resHelp.matched, true);
         assert(resHelp.output.includes("AID-Modules & CSCP Command Reference"));
 
-        // Test CSCP card-mode switch via slash command
-        const resMode = app.dispatch("/aid-modules --card-mode C");
+        // Test CSCP card-mode switch via slash command (including aliases)
+        const resMode = app.dispatch("/aid-modules --card-mode shared");
         assert.strictEqual(resMode.matched, true);
-        assert(resMode.output.includes("Option C"));
+        assert(resMode.output.includes("shared"));
+
+        const resAliasMode = app.dispatch("/aid-modules -m piggyback");
+        assert.strictEqual(resAliasMode.matched, true);
+        assert(resAliasMode.output.includes("shared"));
+
+        const resDedMode = app.dispatch("/aid-modules -m dedicated");
+        assert.strictEqual(resDedMode.matched, true);
+        assert(resDedMode.output.includes("dedicated"));
 
         console.log("   ✔ In-game /aid-modules & /aid-module slash commands integrated with aid-getopt");
     } catch (_) {
