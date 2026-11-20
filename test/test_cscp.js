@@ -270,6 +270,70 @@ function createSlotVM(sharedCards, sharedInfo, sharedHistory, slotState) {
     console.log("   ✔ Monolith partial-capability yielding, live slot reordering, and slot removal self-healing verified");
 }
 
+// 6. Variation-Selector (\uFE00..\uFE0F) DLL Export & Dynamic Loader Bootstrap Across VMs
+{
+    const loaderPath = path.resolve(__dirname, "../src/cscp-loader.js");
+    const loaderCode = fs.readFileSync(loaderPath, "utf8");
+
+    const sharedCards = [];
+    const sharedInfo = { actionCount: 50 };
+    const sharedHistory = new Array(100).fill({ text: "turn" });
+
+    const stateServer = {};      // Slot 1: AID-Modules Server (exports DLL)
+    const stateThinClientA = {}; // Slot 2: Thin Client (ONLY has 15-line cscp-loader.js!)
+    const stateThinClientB = {}; // Slot 3: Thin Client (ONLY has 15-line cscp-loader.js!)
+
+    // 1. Slot 1 (Server) runs and exports the 16-Variation-Selector DLL into storyCards
+    const vmServer = createSlotVM(sharedCards, sharedInfo, sharedHistory, stateServer);
+    vm.runInContext(serverCode, vmServer.ctx);
+    vmServer.sandbox.AID.hook("context", "Story context", false);
+
+    const dedCard = sharedCards.find(c => c.title === "Configure \nSystem Modules");
+    assert(dedCard, "Dedicated card must exist");
+    assert(CSCPClient.hasDLL(dedCard.keys), "Dedicated card keys must contain the Variation-Selector (\uFE00..\uFE0F) DLL frame");
+    assert(dedCard.entry.includes("Client DLL Exported: Yes (Variation-Selector FE00..FE0F)"));
+
+    // 2. Slot 2 (Thin Client A) runs in a brand-new isolated VM with ONLY cscp-loader.js!
+    const vmThinA = createSlotVM(sharedCards, sharedInfo, sharedHistory, stateThinClientA);
+    assert.strictEqual(vmThinA.sandbox.AID_CSCP, undefined, "Thin VM starts with zero CSCP library");
+    vm.runInContext(loaderCode, vmThinA.ctx);
+
+    const t0 = process.hrtime.bigint();
+    const dynamicCSCP_A = vmThinA.sandbox.loadCSCP();
+    const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
+
+    assert(dynamicCSCP_A, "loadCSCP() must dynamically decode and instantiate AID_CSCP from storyCard DLL");
+    assert.strictEqual(typeof dynamicCSCP_A.announce, "function");
+    assert.notStrictEqual(dynamicCSCP_A.gitHash, "dev", "Dynamically loaded DLL client must have stamped gitHash");
+
+    dynamicCSCP_A.announce({
+        name: "thin-client-alpha",
+        version: "1.0.5",
+        buildType: "modular",
+        provides: ["alpha-cap"],
+        prefix: "/alpha"
+    }, { phase: "context" });
+
+    // 3. Slot 3 (Thin Client B) also loads from storyCard DLL and collides on "alpha-cap"
+    const vmThinB = createSlotVM(sharedCards, sharedInfo, sharedHistory, stateThinClientB);
+    vm.runInContext(loaderCode, vmThinB.ctx);
+    const dynamicCSCP_B = vmThinB.sandbox.loadCSCP();
+    const bRes = dynamicCSCP_B.announce({
+        name: "thin-client-beta",
+        version: "2.0.0",
+        buildType: "standalone",
+        provides: ["alpha-cap", "beta-cap"],
+        prefix: "/beta"
+    }, { phase: "context" });
+
+    assert.strictEqual(bRes.isColliding, true, "Dynamically loaded client B must detect collision with client A");
+    assert.deepStrictEqual(Array.from(bRes.active), ["beta-cap"]);
+    assert.deepStrictEqual(Array.from(bRes.yielded), ["alpha-cap"]);
+    assert(CSCPClient.hasDLL(dedCard.keys), "DLL frame must be preserved after downstream thin clients write to the card");
+
+    console.log(`   ✔ Variation-Selector (FE00..FE0F) DLL export & thin-client loadCSCP() verified (decode+eval: ${elapsedMs.toFixed(2)} ms)`);
+}
+
 console.log("==================================================================");
 console.log("  🎉 ALL CSCP SERVER & CLIENT TESTS PASSED (100% SUCCESS)");
 console.log("==================================================================");

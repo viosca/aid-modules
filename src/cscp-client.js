@@ -4,19 +4,11 @@
  * ============================================================================
  *
  * Lightweight, zero-dependency client and codec for cross-VM slot discovery,
- * waterfall order tracking, capability collision resolution, and zero-width
- * storyCard steganography in AI Dungeon's isolated QuickJS multi-script environment.
+ * waterfall order tracking, capability collision resolution, Variation-Selector
+ * DLL export/import, and zero-width storyCard steganography in AI Dungeon's
+ * isolated QuickJS multi-script environment.
  *
- * Carrier Card Modes:
- * - "dedicated" (Default): Dedicated "Configure \nSystem Modules" dashboard story card
- *   (aliases: "dashboard", "visible", "true", "on", "d")
- * - "shared" (Configurable): Shares/piggybacks the zero-width binary stamp on an
- *   existing configuration story card with zero extra cards added to the adventure
- *   (aliases: "piggyback", "stealth", "headless", "false", "off", "s")
- *
- * Supports both Multi-Slot Modular Waterfalls and Single-Slot All-in-One Monoliths.
- *
- * @version 1.0.0
+ * @version 1.1.0
  * @author Randy Viosca (@Random_Variable on AI Dungeon)
  * @license MIT
  */
@@ -26,12 +18,17 @@
     } else {
         root.AID_CSCP = factory();
     }
-})(typeof globalThis !== "undefined" ? globalThis : this, function() {
+})(typeof globalThis !== "undefined" ? globalThis : this, function cscpFactory() {
     "use strict";
 
     const CSCP_VERSION = 1;
+    const GIT_HASH = "dev";
+    const BUILD_TIME = "dev";
+
     const STAMP_START = "\u200D\u200C\u200D";
     const STAMP_END = "\u200D\u200B\u200D";
+    const DLL_START = "\u200D\uFE00\u200D";
+    const DLL_END = "\u200D\uFE0F\u200D";
     const HANDSHAKE_TOKEN = "\u200D\u200B\u200C\u200B\u200D";
     const DEDICATED_CARD_TITLE = "Configure \nSystem Modules";
     const DEFAULT_CARD_KEYS = "github.com/viosca/aid-modules";
@@ -39,11 +36,6 @@
     const DEDICATED_ALIASES = ["dedicated", "dashboard", "visible", "true", "t", "yes", "y", "1", "on", "d"];
     const SHARED_ALIASES = ["shared", "piggyback", "stealth", "headless", "false", "f", "no", "n", "0", "off", "s"];
 
-    /**
-     * Normalizes a carrier card mode value or alias to canonical "dedicated" or "shared".
-     * @param {*} val Input mode string or boolean
-     * @returns {"dedicated"|"shared"|null}
-     */
     function normalizeCardMode(val) {
         if (typeof val === "boolean") return val ? "dedicated" : "shared";
         if (val === null || val === undefined) return null;
@@ -53,14 +45,69 @@
         return null;
     }
 
+    function minifyClientSource(src) {
+        return src
+            .replace(/\/\*[\s\S]*?\*\//g, "")
+            .split(/\r?\n/)
+            .map(l => l.trim())
+            .filter(l => l.length > 0 && !l.startsWith("//"))
+            .join("\n");
+    }
+
     /**
-     * Serializes any JSON-compatible object into an invisible zero-width binary frame.
-     * Escapes non-ASCII characters to \uXXXX before bit-encoding so multi-byte UTF-8
-     * characters and emojis are preserved 100% losslessly.
-     *
-     * @param {Object} obj Payload to serialize
-     * @returns {string} Zero-width encoded frame bounded by STAMP_START and STAMP_END
+     * Encodes a JavaScript source string into a 16-Variation-Selector (\uFE00..\uFE0F)
+     * invisible DLL frame (2 chars per byte, 4 bits per nibble).
      */
+    function encodeDLL(jsCode) {
+        if (typeof jsCode !== "string" || !jsCode) return "";
+        const ascii = jsCode.replace(/[\u0080-\uFFFF]/g, (ch) => {
+            return "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0");
+        });
+        let out = "";
+        for (let i = 0; i < ascii.length; i++) {
+            const b = ascii.charCodeAt(i) & 0xFF;
+            out += String.fromCharCode(0xFE00 + ((b >> 4) & 0x0F))
+                 + String.fromCharCode(0xFE00 + (b & 0x0F));
+        }
+        return DLL_START + out + DLL_END;
+    }
+
+    /**
+     * Decodes a 16-Variation-Selector (\uFE00..\uFE0F) invisible DLL frame back into JS source code.
+     */
+    function decodeDLL(str) {
+        if (typeof str !== "string") return null;
+        const s = str.indexOf(DLL_START);
+        if (s === -1) return null;
+        const e = str.indexOf(DLL_END, s + DLL_START.length);
+        if (e === -1) return null;
+        const start = s + DLL_START.length;
+        if (((e - start) % 2) !== 0) return null;
+        let js = "";
+        for (let i = start; i < e; i += 2) {
+            js += String.fromCharCode(((str.charCodeAt(i) & 15) << 4) | (str.charCodeAt(i + 1) & 15));
+        }
+        return js;
+    }
+
+    function extractDLLFrame(str) {
+        if (typeof str !== "string") return "";
+        const s = str.indexOf(DLL_START);
+        if (s === -1) return "";
+        const e = str.indexOf(DLL_END, s + DLL_START.length);
+        if (e === -1) return "";
+        return str.slice(s, e + DLL_END.length);
+    }
+
+    function stripDLL(str) {
+        if (typeof str !== "string") return "";
+        const s = str.indexOf(DLL_START);
+        if (s === -1) return str;
+        const e = str.indexOf(DLL_END, s + DLL_START.length);
+        if (e === -1) return str.slice(0, s);
+        return str.slice(0, s) + str.slice(e + DLL_END.length);
+    }
+
     function serialize(obj) {
         try {
             if (!obj || typeof obj !== "object") return "";
@@ -80,12 +127,6 @@
         }
     }
 
-    /**
-     * Deserializes a zero-width binary frame from any carrier string back into a JS object.
-     *
-     * @param {string} str Carrier string containing a CSCP frame
-     * @returns {Object|null} Decoded object or null if absent/invalid
-     */
     function deserialize(str) {
         try {
             if (typeof str !== "string") return null;
@@ -110,13 +151,7 @@
         }
     }
 
-    /**
-     * Strips any CSCP zero-width binary frame from a string while preserving visible content.
-     *
-     * @param {string} str Input string
-     * @returns {string} Clean string without CSCP stamp
-     */
-    function strip(str) {
+    function stripStamp(str) {
         if (typeof str !== "string") return "";
         const sIdx = str.indexOf(STAMP_START);
         if (sIdx === -1) return str;
@@ -126,11 +161,12 @@
     }
 
     /**
-     * Checks whether a string contains a CSCP zero-width binary frame.
-     *
-     * @param {string} str Input string
-     * @returns {boolean}
+     * Strips all invisible CSCP frames (both DLL and Data Stamp), returning pure visible keys.
      */
+    function strip(str) {
+        return stripDLL(stripStamp(str));
+    }
+
     function hasStamp(str) {
         if (typeof str !== "string") return false;
         const sIdx = str.indexOf(STAMP_START);
@@ -138,30 +174,25 @@
         return str.indexOf(STAMP_END, sIdx + STAMP_START.length) !== -1;
     }
 
-    /**
-     * Resolves the current AI Dungeon storyCards array from global or lexical scope.
-     * @returns {Array|null}
-     */
+    function hasDLL(str) {
+        if (typeof str !== "string") return false;
+        const sIdx = str.indexOf(DLL_START);
+        if (sIdx === -1) return false;
+        return str.indexOf(DLL_END, sIdx + DLL_START.length) !== -1;
+    }
+
     function getStoryCards() {
         if (typeof storyCards !== "undefined" && Array.isArray(storyCards)) return storyCards;
         if (typeof globalThis !== "undefined" && Array.isArray(globalThis.storyCards)) return globalThis.storyCards;
         return null;
     }
 
-    /**
-     * Resolves the current AI Dungeon per-slot state object.
-     * @returns {Object|null}
-     */
     function getState() {
         if (typeof state !== "undefined" && state && typeof state === "object" && !Array.isArray(state)) return state;
         if (typeof globalThis !== "undefined" && globalThis.state && typeof globalThis.state === "object" && !Array.isArray(globalThis.state)) return globalThis.state;
         return null;
     }
 
-    /**
-     * Resolves the current turnKey ("actionCount:historyLength").
-     * @returns {string}
-     */
     function getTurnKey() {
         const inf = (typeof info !== "undefined" && info && typeof info === "object")
             ? info
@@ -177,25 +208,58 @@
     class CSCPBus {
         constructor() {
             this.version = CSCP_VERSION;
+            this.gitHash = GIT_HASH;
+            this.buildTime = BUILD_TIME;
             this.STAMP_START = STAMP_START;
             this.STAMP_END = STAMP_END;
+            this.DLL_START = DLL_START;
+            this.DLL_END = DLL_END;
             this.HANDSHAKE_TOKEN = HANDSHAKE_TOKEN;
             this.DEDICATED_CARD_TITLE = DEDICATED_CARD_TITLE;
             this._vmSlotUid = "slot-" + Math.random().toString(36).slice(2, 8);
+            this._dllFrame = "";
             this._config = {
-                cardMode: null, // null = auto ("dedicated" default unless overridden by card/MainSettings)
+                cardMode: null,
                 pinCard: false,
                 autoCreateCard: true
             };
         }
 
         /**
-         * Configures CSCP behavior for this VM.
-         * @param {Object} opts
-         * @param {"dedicated"|"shared"|"piggyback"|"dashboard"|"stealth"|"headless"} [opts.cardMode] Carrier mode
-         * @param {boolean} [opts.pinCard] Pin the dedicated System Modules card
-         * @param {boolean} [opts.autoCreateCard] Whether to auto-create the dedicated card when in dedicated mode
+         * Builds (or caches) the Variation-Selector (\uFE00..\uFE0F) DLL frame directly from
+         * `cscpFactory.toString()` so zero duplicate JS string literal is needed in the bundle!
          */
+        buildSelfDLLFrame() {
+            if (!this._dllFrame) {
+                const rawSelf = "globalThis.AID_CSCP=(" + cscpFactory.toString() + ")();";
+                this._dllFrame = encodeDLL(minifyClientSource(rawSelf));
+            }
+            return this._dllFrame;
+        }
+
+        setDLLFrame(dllFrame) {
+            if (typeof dllFrame === "string" && dllFrame.startsWith(DLL_START)) {
+                this._dllFrame = dllFrame;
+            }
+            return this;
+        }
+
+        findActiveDLLFrame(cards) {
+            if (this._dllFrame) return this._dllFrame;
+            if (Array.isArray(cards)) {
+                for (const c of cards) {
+                    if (c && typeof c.keys === "string" && c.keys.includes(DLL_START)) {
+                        const extracted = extractDLLFrame(c.keys);
+                        if (extracted) {
+                            this._dllFrame = extracted;
+                            return extracted;
+                        }
+                    }
+                }
+            }
+            return this.buildSelfDLLFrame();
+        }
+
         configure(opts = {}) {
             if (!opts || typeof opts !== "object") return this;
             if (opts.cardMode !== undefined) {
@@ -211,11 +275,6 @@
             return this;
         }
 
-        /**
-         * Returns the persistent unique identifier for this script slot.
-         * Persisted in per-slot `state._aid_slot_uid` so it survives across turns.
-         * @returns {string}
-         */
         getSlotUid() {
             const st = getState();
             if (st) {
@@ -227,11 +286,6 @@
             return this._vmSlotUid;
         }
 
-        /**
-         * Creates an empty v1 CSCP registry packet.
-         * @param {"dedicated"|"shared"} [mode="dedicated"]
-         * @returns {Object}
-         */
         createEmptyPacket(mode = "dedicated") {
             return {
                 v: CSCP_VERSION,
@@ -247,11 +301,6 @@
             };
         }
 
-        /**
-         * Parses user-editable settings from the dedicated "Configure \nSystem Modules" card entry.
-         * @param {Object} card
-         * @returns {{ mode: "dedicated"|"shared", pin: boolean }}
-         */
         parseDedicatedCardEntry(card) {
             const result = { mode: "dedicated", pin: this._config.pinCard };
             if (!card || typeof card.entry !== "string") return result;
@@ -274,11 +323,6 @@
             return result;
         }
 
-        /**
-         * Determines the effective card carrier mode: "dedicated" or "shared".
-         * @param {Object|null} existingPacket
-         * @returns {"dedicated"|"shared"}
-         */
         resolveCardMode(existingPacket = null) {
             const cards = getStoryCards();
             if (cards) {
@@ -311,17 +355,14 @@
             return "dedicated";
         }
 
-        /**
-         * Reads and deserializes the CSCP registry packet from storyCards (L2) or global cache (L1).
-         * Completely card-title agnostic: scans all cards for the STAMP_START magic header.
-         *
-         * @returns {Object|null}
-         */
         read() {
             const cards = getStoryCards();
             if (cards) {
                 for (const c of cards) {
                     if (c && typeof c === "object" && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
+                        if (c.keys.includes(DLL_START) && !this._dllFrame) {
+                            this._dllFrame = extractDLLFrame(c.keys);
+                        }
                         const decoded = deserialize(c.keys);
                         if (decoded && typeof decoded === "object" && decoded.v === CSCP_VERSION) {
                             decoded.mode = normalizeCardMode(decoded.mode) || "dedicated";
@@ -339,21 +380,17 @@
             return null;
         }
 
-        /**
-         * Formats the human-readable dashboard for the Dedicated "Configure \nSystem Modules" card.
-         *
-         * @param {Object} packet CSCP registry packet
-         * @returns {{ entry: string, description: string }}
-         */
         formatDashboardCard(packet) {
             const orderedUids = (Array.isArray(packet.lastOrder) && packet.lastOrder.length >= (packet.order || []).length)
                 ? packet.lastOrder
                 : (packet.order || []);
             const allSlotUids = [...new Set([...orderedUids, ...Object.keys(packet.slots || {})])];
+            const dllLoaded = Boolean(this._dllFrame);
             const lines = [
-                `=== AID-Modules System Bus (CSCP v${CSCP_VERSION}.0) ===`,
+                `=== AID-Modules System Bus (CSCP v${CSCP_VERSION}.0${GIT_HASH !== "dev" ? ` / ${GIT_HASH}` : ""}) ===`,
                 `> Carrier card mode: ${packet.mode === "shared" ? "shared" : "dedicated"}`,
                 `> Pin this config card: ${Boolean(this._config.pinCard)}`,
+                `> Client DLL Exported: ${dllLoaded ? "Yes (Variation-Selector FE00..FE0F)" : "No"}`,
                 `> Turn Key: ${packet.t || "0:0"} (Phase: ${packet.p || "init"})`,
                 `> Active Script Slots (${allSlotUids.length} detected):`
             ];
@@ -403,26 +440,18 @@
             };
         }
 
-        /**
-         * Finds a generic carrier card for "shared" (piggyback) mode without hardcoded module names.
-         * @param {Array} cards
-         * @returns {Object|null}
-         */
         findSharedCarrier(cards) {
             if (!Array.isArray(cards) || cards.length === 0) return null;
-            // 1. Any non-dedicated card that already carries a CSCP stamp
             for (const c of cards) {
-                if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
+                if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.keys === "string" && (c.keys.includes(STAMP_START) || c.keys.includes(DLL_START))) {
                     return c;
                 }
             }
-            // 2. Any non-dedicated card with "Configure" in its title
             for (const c of cards) {
                 if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.title === "string" && c.title.includes("Configure")) {
                     return c;
                 }
             }
-            // 3. First available non-dedicated card
             for (const c of cards) {
                 if (c && c.title !== DEDICATED_CARD_TITLE) {
                     return c;
@@ -431,14 +460,6 @@
             return null;
         }
 
-        /**
-         * Writes the CSCP registry packet to storyCards (using "dedicated" or "shared" carrier mode) and updates L1 cache.
-         *
-         * @param {Object} packet CSCP registry packet
-         * @param {Object} [options]
-         * @param {boolean} [options.createCard] Override whether to create the dedicated card if missing
-         * @returns {Object} The written packet
-         */
         write(packet, options = {}) {
             if (!packet || typeof packet !== "object") return packet;
             const mode = this.resolveCardMode(packet);
@@ -451,6 +472,7 @@
             const cards = getStoryCards();
             if (!cards) return packet;
 
+            const dllFrame = this.findActiveDLLFrame(cards);
             const encoded = serialize(packet);
             if (!encoded) return packet;
 
@@ -468,20 +490,21 @@
 
                 if (!dedCard && allowCreate && addCardFn) {
                     const fmt = this.formatDashboardCard(packet);
-                    addCardFn(DEFAULT_CARD_KEYS + encoded, fmt.entry, "class", DEDICATED_CARD_TITLE, fmt.description);
+                    const fullKeys = DEFAULT_CARD_KEYS + dllFrame + encoded;
+                    addCardFn(fullKeys, fmt.entry, "class", DEDICATED_CARD_TITLE, fmt.description);
                     dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
                     dedCard = dedIdx !== -1 ? cards[dedIdx] : cards[cards.length - 1];
                     if (dedCard) {
                         dedCard.title = DEDICATED_CARD_TITLE;
                         dedCard.type = "class";
-                        dedCard.keys = DEFAULT_CARD_KEYS + encoded;
+                        dedCard.keys = fullKeys;
                         dedCard.entry = fmt.entry;
                         dedCard.description = fmt.description;
                     }
                 } else if (dedCard) {
                     const fmt = this.formatDashboardCard(packet);
                     const baseKeys = strip(dedCard.keys || "").trim() || DEFAULT_CARD_KEYS;
-                    dedCard.keys = baseKeys + encoded;
+                    dedCard.keys = baseKeys + dllFrame + encoded;
                     dedCard.entry = fmt.entry;
                     dedCard.description = fmt.description;
                 }
@@ -493,18 +516,17 @@
 
                 if (dedCard) {
                     for (const c of cards) {
-                        if (c && c !== dedCard && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
+                        if (c && c !== dedCard && typeof c.keys === "string" && (c.keys.includes(STAMP_START) || c.keys.includes(DLL_START))) {
                             c.keys = strip(c.keys);
                         }
                     }
                 } else {
                     const carrier = this.findSharedCarrier(cards);
                     if (carrier) {
-                        carrier.keys = strip(carrier.keys || "") + encoded;
+                        carrier.keys = strip(carrier.keys || "") + dllFrame + encoded;
                     }
                 }
             } else {
-                // "shared" (piggyback / stealth) carrier mode
                 const dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
                 if (dedIdx !== -1) {
                     if (removeCardFn) {
@@ -516,25 +538,17 @@
                 const carrier = this.findSharedCarrier(cards);
                 if (carrier) {
                     for (const c of cards) {
-                        if (c && c !== carrier && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
+                        if (c && c !== carrier && typeof c.keys === "string" && (c.keys.includes(STAMP_START) || c.keys.includes(DLL_START))) {
                             c.keys = strip(c.keys);
                         }
                     }
-                    carrier.keys = strip(carrier.keys || "") + encoded;
+                    carrier.keys = strip(carrier.keys || "") + dllFrame + encoded;
                 }
             }
 
             return packet;
         }
 
-        /**
-         * Announces a module or slot capability into the CSCP registry and checks for cross-slot
-         * or intra-slot capability collisions.
-         *
-         * @param {Object} spec Module / slot specification
-         * @param {Object} [options]
-         * @returns {{ slotUid: string, slotOrder: number, active: Array<string>, yielded: Array<string>, isColliding: boolean, collisions: Array<Object>, packet: Object }}
-         */
         announce(spec, options = {}) {
             if (!spec || typeof spec !== "object" || !spec.name) {
                 throw new Error("[AID-CSCP] announce() requires a spec object with a 'name' property");
@@ -711,7 +725,13 @@
     cscp.serialize = serialize;
     cscp.deserialize = deserialize;
     cscp.strip = strip;
+    cscp.stripStamp = stripStamp;
     cscp.hasStamp = hasStamp;
+    cscp.encodeDLL = encodeDLL;
+    cscp.decodeDLL = decodeDLL;
+    cscp.extractDLLFrame = extractDLLFrame;
+    cscp.stripDLL = stripDLL;
+    cscp.hasDLL = hasDLL;
     cscp.getTurnKey = getTurnKey;
     cscp.normalizeCardMode = normalizeCardMode;
 

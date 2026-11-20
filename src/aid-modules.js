@@ -1,12 +1,14 @@
 /**
  * ============================================================================
- * AID-Modules: Standard Module Registry & CSCP Server/Client for AI Dungeon
+ * AID-Modules: Standard Module Registry & CSCP Server for AI Dungeon
  * ============================================================================
  *
  * Implements the AI Dungeon Module Specification (AMS v1.1.0) &
- * Cross-Slot Coordination Protocol (CSCP v1.0.0):
+ * Cross-Slot Coordination Protocol (CSCP v1.1.0):
  * - Standardized registration, discovery, and SemVer dependency checking.
  * - Cross-VM / Cross-Slot coordination via zero-width storyCard steganography.
+ * - Exports the minified CSCP Client DLL into storyCards using 16 invisible
+ *   Unicode Variation Selectors (\uFE00..\uFE0F) for downstream slot loaders.
  * - Supports "dedicated" mode (Dedicated "Configure \nSystem Modules" dashboard card)
  *   and configurable "shared" mode (shares/piggybacks on existing config cards).
  * - Seamless unification of Multi-Slot Waterfalls and All-in-One Monoliths.
@@ -16,6 +18,7 @@
  * @author Randy Viosca (@Random_Variable on AI Dungeon)
  * @license MIT
  */
+/* __EMBED_CSCP_CLIENT__ */
 (function(root, factory) {
     if (typeof module === "object" && module.exports) {
         const cscp = require("./cscp-client");
@@ -23,92 +26,21 @@
     } else {
         root.AID = factory(root.AID_CSCP);
     }
-})(typeof globalThis !== "undefined" ? globalThis : this, function(externalCSCP) {
+})(typeof globalThis !== "undefined" ? globalThis : this, function(cscpInstance) {
     "use strict";
 
     const VERSION = "1.1.0";
     const GIT_HASH = "dev";
     const BUILD_TIME = "dev";
 
-    // ========================================================================
-    // Embedded CSCP (Cross-Slot Coordination Protocol) Engine
-    // ========================================================================
-    const CSCP_VERSION = 1;
-    const STAMP_START = "\u200D\u200C\u200D";
-    const STAMP_END = "\u200D\u200B\u200D";
-    const HANDSHAKE_TOKEN = "\u200D\u200B\u200C\u200B\u200D";
-    const DEDICATED_CARD_TITLE = "Configure \nSystem Modules";
-    const DEFAULT_CARD_KEYS = "github.com/viosca/aid-modules";
-
-    const DEDICATED_ALIASES = ["dedicated", "dashboard", "visible", "true", "t", "yes", "y", "1", "on", "d"];
-    const SHARED_ALIASES = ["shared", "piggyback", "stealth", "headless", "false", "f", "no", "n", "0", "off", "s"];
-
-    function normalizeCardMode(val) {
-        if (typeof val === "boolean") return val ? "dedicated" : "shared";
-        if (val === null || val === undefined) return null;
-        const clean = String(val).toLowerCase().replace(/[^a-z0-9]/g, "");
-        if (SHARED_ALIASES.includes(clean)) return "shared";
-        if (DEDICATED_ALIASES.includes(clean)) return "dedicated";
-        return null;
+    if (!cscpInstance) {
+        throw new Error("[AID-Modules] CSCP engine not initialized.");
     }
 
-    function serialize(obj) {
-        try {
-            if (!obj || typeof obj !== "object") return "";
-            const json = JSON.stringify(obj).replace(/[\u0080-\uFFFF]/g, (ch) => {
-                return "\\u" + ch.charCodeAt(0).toString(16).padStart(4, "0");
-            });
-            let bits = "";
-            for (let i = 0; i < json.length; i++) {
-                const code = json.charCodeAt(i) & 0xFF;
-                for (let b = 7; b >= 0; b--) {
-                    bits += ((code >> b) & 1) ? "\u200C" : "\u200B";
-                }
-            }
-            return STAMP_START + bits + STAMP_END;
-        } catch (_) {
-            return "";
-        }
-    }
-
-    function deserialize(str) {
-        try {
-            if (typeof str !== "string") return null;
-            const sIdx = str.indexOf(STAMP_START);
-            if (sIdx === -1) return null;
-            const eIdx = str.indexOf(STAMP_END, sIdx + STAMP_START.length);
-            if (eIdx === -1) return null;
-            const bits = str.slice(sIdx + STAMP_START.length, eIdx);
-            if (bits.length === 0 || (bits.length % 8) !== 0) return null;
-            let json = "";
-            for (let i = 0; i < bits.length; i += 8) {
-                let byte = 0;
-                for (let b = 0; b < 8; b++) {
-                    byte = (byte << 1) | (bits[i + b] === "\u200C" ? 1 : 0);
-                }
-                json += String.fromCharCode(byte);
-            }
-            const parsed = JSON.parse(json);
-            return (parsed && typeof parsed === "object") ? parsed : null;
-        } catch (_) {
-            return null;
-        }
-    }
-
-    function strip(str) {
-        if (typeof str !== "string") return "";
-        const sIdx = str.indexOf(STAMP_START);
-        if (sIdx === -1) return str;
-        const eIdx = str.indexOf(STAMP_END, sIdx + STAMP_START.length);
-        if (eIdx === -1) return str.slice(0, sIdx);
-        return str.slice(0, sIdx) + str.slice(eIdx + STAMP_END.length);
-    }
-
-    function hasStamp(str) {
-        if (typeof str !== "string") return false;
-        const sIdx = str.indexOf(STAMP_START);
-        if (sIdx === -1) return false;
-        return str.indexOf(STAMP_END, sIdx + STAMP_START.length) !== -1;
+    // Pre-build the 16-Variation-Selector (\uFE00..\uFE0F) DLL frame from cscpFactory.toString()
+    // so the server exports the client DLL onto the carrier storyCard automatically.
+    if (typeof cscpInstance.buildSelfDLLFrame === "function") {
+        cscpInstance.buildSelfDLLFrame();
     }
 
     function getStoryCards() {
@@ -121,502 +53,6 @@
         if (typeof state !== "undefined" && state && typeof state === "object" && !Array.isArray(state)) return state;
         if (typeof globalThis !== "undefined" && globalThis.state && typeof globalThis.state === "object" && !Array.isArray(globalThis.state)) return globalThis.state;
         return null;
-    }
-
-    function getTurnKey() {
-        const inf = (typeof info !== "undefined" && info && typeof info === "object")
-            ? info
-            : (typeof globalThis !== "undefined" && globalThis.info && typeof globalThis.info === "object" ? globalThis.info : null);
-        const hist = (typeof history !== "undefined" && Array.isArray(history))
-            ? history
-            : (typeof globalThis !== "undefined" && Array.isArray(globalThis.history) ? globalThis.history : null);
-        const act = inf && typeof inf.actionCount === "number" ? inf.actionCount : 0;
-        const hLen = hist ? hist.length : 0;
-        return `${act}:${hLen}`;
-    }
-
-    class CSCPBus {
-        constructor() {
-            this.version = CSCP_VERSION;
-            this.STAMP_START = STAMP_START;
-            this.STAMP_END = STAMP_END;
-            this.HANDSHAKE_TOKEN = HANDSHAKE_TOKEN;
-            this.DEDICATED_CARD_TITLE = DEDICATED_CARD_TITLE;
-            this._vmSlotUid = "slot-" + Math.random().toString(36).slice(2, 8);
-            this._config = {
-                cardMode: null,
-                pinCard: false,
-                autoCreateCard: true
-            };
-        }
-
-        configure(opts = {}) {
-            if (!opts || typeof opts !== "object") return this;
-            if (opts.cardMode !== undefined) {
-                const norm = normalizeCardMode(opts.cardMode);
-                if (norm) this._config.cardMode = norm;
-            }
-            if (typeof opts.pinCard === "boolean") {
-                this._config.pinCard = opts.pinCard;
-            }
-            if (typeof opts.autoCreateCard === "boolean") {
-                this._config.autoCreateCard = opts.autoCreateCard;
-            }
-            return this;
-        }
-
-        getSlotUid() {
-            const st = getState();
-            if (st) {
-                if (!st._aid_slot_uid || typeof st._aid_slot_uid !== "string") {
-                    st._aid_slot_uid = this._vmSlotUid;
-                }
-                return st._aid_slot_uid;
-            }
-            return this._vmSlotUid;
-        }
-
-        createEmptyPacket(mode = "dedicated") {
-            return {
-                v: CSCP_VERSION,
-                t: getTurnKey(),
-                p: "init",
-                mode: normalizeCardMode(mode) || "dedicated",
-                order: [],
-                lastOrder: [],
-                owners: {},
-                collisions: [],
-                slots: {},
-                modules: {}
-            };
-        }
-
-        parseDedicatedCardEntry(card) {
-            const result = { mode: "dedicated", pin: this._config.pinCard };
-            if (!card || typeof card.entry !== "string") return result;
-
-            const modeMatch = card.entry.match(/(?:Carrier\s+card\s+mode|(?:Show|Dedicated)\s+System\s+Modules\s+card)\s*:\s*([^\n\r]+)/i);
-            if (modeMatch) {
-                const norm = normalizeCardMode(modeMatch[1]);
-                if (norm) result.mode = norm;
-            }
-
-            const pinMatch = card.entry.match(/Pin\s+this\s+config\s+card\s*:\s*([^\n\r]+)/i);
-            if (pinMatch) {
-                const val = pinMatch[1].toLowerCase().replace(/[^a-z0-9]/g, "");
-                if (["true", "t", "yes", "y", "1", "on"].includes(val)) {
-                    result.pin = true;
-                } else if (["false", "f", "no", "n", "0", "off"].includes(val)) {
-                    result.pin = false;
-                }
-            }
-            return result;
-        }
-
-        resolveCardMode(existingPacket = null) {
-            const cards = getStoryCards();
-            if (cards) {
-                const dedCard = cards.find(c => c && c.title === DEDICATED_CARD_TITLE);
-                if (dedCard) {
-                    const parsed = this.parseDedicatedCardEntry(dedCard);
-                    this._config.pinCard = parsed.pin;
-                    if (parsed.mode === "shared") {
-                        this._config.cardMode = "shared";
-                        return "shared";
-                    }
-                    if (this._config.cardMode === "shared") {
-                        return "shared";
-                    }
-                    return "dedicated";
-                }
-            }
-            if (this._config.cardMode === "shared" || this._config.cardMode === "dedicated") {
-                return this._config.cardMode;
-            }
-            if (typeof globalThis !== "undefined" && globalThis.MainSettings && globalThis.MainSettings.SystemModules) {
-                const sm = globalThis.MainSettings.SystemModules;
-                const norm = normalizeCardMode(sm.CARD_MODE ?? sm.DEDICATED_CARD);
-                if (norm) return norm;
-            }
-            if (existingPacket && existingPacket.mode) {
-                const norm = normalizeCardMode(existingPacket.mode);
-                if (norm) return norm;
-            }
-            return "dedicated";
-        }
-
-        read() {
-            const cards = getStoryCards();
-            if (cards) {
-                for (const c of cards) {
-                    if (c && typeof c === "object" && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
-                        const decoded = deserialize(c.keys);
-                        if (decoded && typeof decoded === "object" && decoded.v === CSCP_VERSION) {
-                            decoded.mode = normalizeCardMode(decoded.mode) || "dedicated";
-                            if (typeof globalThis !== "undefined") {
-                                globalThis._AID_CSCP_PACKET = decoded;
-                            }
-                            return decoded;
-                        }
-                    }
-                }
-            }
-            if (typeof globalThis !== "undefined" && globalThis._AID_CSCP_PACKET) {
-                return globalThis._AID_CSCP_PACKET;
-            }
-            return null;
-        }
-
-        formatDashboardCard(packet) {
-            const orderedUids = (Array.isArray(packet.lastOrder) && packet.lastOrder.length >= (packet.order || []).length)
-                ? packet.lastOrder
-                : (packet.order || []);
-            const allSlotUids = [...new Set([...orderedUids, ...Object.keys(packet.slots || {})])];
-            const lines = [
-                `=== AID-Modules System Bus (CSCP v${CSCP_VERSION}.0) ===`,
-                `> Carrier card mode: ${packet.mode === "shared" ? "shared" : "dedicated"}`,
-                `> Pin this config card: ${Boolean(this._config.pinCard)}`,
-                `> Turn Key: ${packet.t || "0:0"} (Phase: ${packet.p || "init"})`,
-                `> Active Script Slots (${allSlotUids.length} detected):`
-            ];
-
-            if (allSlotUids.length === 0) {
-                lines.push("  (No active slots announced yet)");
-            } else {
-                allSlotUids.forEach((uid, idx) => {
-                    const slot = packet.slots && packet.slots[uid];
-                    if (!slot) return;
-                    const modList = Array.isArray(slot.modules) && slot.modules.length > 0
-                        ? slot.modules.map(mName => {
-                            const m = packet.modules && packet.modules[mName];
-                            return m ? `${m.name} v${m.version}` : mName;
-                        }).join(", ")
-                        : (slot.name || uid);
-                    const buildTag = slot.buildType ? ` [${slot.buildType}]` : "";
-                    const cmdTag = Array.isArray(slot.cmds) && slot.cmds.length > 0
-                        ? ` -> ${slot.cmds.join(", ")}`
-                        : "";
-                    const yieldTag = Array.isArray(slot.yielded) && slot.yielded.length > 0
-                        ? ` (YIELDED: ${slot.yielded.join(", ")})`
-                        : "";
-                    lines.push(`  Slot ${idx + 1} (${uid})${buildTag}: ${modList}${cmdTag}${yieldTag}`);
-                });
-            }
-
-            const collisions = Array.isArray(packet.collisions) ? packet.collisions : [];
-            if (collisions.length > 0) {
-                lines.push(`> ⚠️ Collisions Detected (${collisions.length}):`);
-                for (const col of collisions) {
-                    lines.push(`  - Capability "${col.capability}" active in ${col.primarySlot} (${col.primaryModule}); bypassed in ${col.yieldedSlot} (${col.yieldedModule})`);
-                }
-            } else {
-                lines.push(`> Status: Healthy (0 collisions)`);
-            }
-
-            const description = [
-                "Cross-Slot Coordination Protocol (CSCP) active.",
-                "Scripts run in waterfall order from Slot 1 downward.",
-                "To hide this card and share/piggyback the registry stamp on an existing configuration card, change 'Carrier card mode: dedicated' to 'shared' (or 'piggyback' / 'stealth') above."
-            ].join("\n");
-
-            return {
-                entry: lines.join("\n"),
-                description
-            };
-        }
-
-        findSharedCarrier(cards) {
-            if (!Array.isArray(cards) || cards.length === 0) return null;
-            for (const c of cards) {
-                if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
-                    return c;
-                }
-            }
-            for (const c of cards) {
-                if (c && c.title !== DEDICATED_CARD_TITLE && typeof c.title === "string" && c.title.includes("Configure")) {
-                    return c;
-                }
-            }
-            for (const c of cards) {
-                if (c && c.title !== DEDICATED_CARD_TITLE) {
-                    return c;
-                }
-            }
-            return null;
-        }
-
-        write(packet, options = {}) {
-            if (!packet || typeof packet !== "object") return packet;
-            const mode = this.resolveCardMode(packet);
-            packet.mode = mode;
-
-            if (typeof globalThis !== "undefined") {
-                globalThis._AID_CSCP_PACKET = packet;
-            }
-
-            const cards = getStoryCards();
-            if (!cards) return packet;
-
-            const encoded = serialize(packet);
-            if (!encoded) return packet;
-
-            const addCardFn = (typeof addStoryCard === "function")
-                ? addStoryCard
-                : (typeof globalThis !== "undefined" && typeof globalThis.addStoryCard === "function" ? globalThis.addStoryCard : null);
-            const removeCardFn = (typeof removeStoryCard === "function")
-                ? removeStoryCard
-                : (typeof globalThis !== "undefined" && typeof globalThis.removeStoryCard === "function" ? globalThis.removeStoryCard : null);
-
-            if (mode === "dedicated") {
-                let dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
-                let dedCard = dedIdx !== -1 ? cards[dedIdx] : null;
-                const allowCreate = options.createCard !== undefined ? options.createCard : this._config.autoCreateCard;
-
-                if (!dedCard && allowCreate && addCardFn) {
-                    const fmt = this.formatDashboardCard(packet);
-                    addCardFn(DEFAULT_CARD_KEYS + encoded, fmt.entry, "class", DEDICATED_CARD_TITLE, fmt.description);
-                    dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
-                    dedCard = dedIdx !== -1 ? cards[dedIdx] : cards[cards.length - 1];
-                    if (dedCard) {
-                        dedCard.title = DEDICATED_CARD_TITLE;
-                        dedCard.type = "class";
-                        dedCard.keys = DEFAULT_CARD_KEYS + encoded;
-                        dedCard.entry = fmt.entry;
-                        dedCard.description = fmt.description;
-                    }
-                } else if (dedCard) {
-                    const fmt = this.formatDashboardCard(packet);
-                    const baseKeys = strip(dedCard.keys || "").trim() || DEFAULT_CARD_KEYS;
-                    dedCard.keys = baseKeys + encoded;
-                    dedCard.entry = fmt.entry;
-                    dedCard.description = fmt.description;
-                }
-
-                if (dedCard && this._config.pinCard && dedIdx > 0) {
-                    cards.splice(dedIdx, 1);
-                    cards.unshift(dedCard);
-                }
-
-                if (dedCard) {
-                    for (const c of cards) {
-                        if (c && c !== dedCard && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
-                            c.keys = strip(c.keys);
-                        }
-                    }
-                } else {
-                    const carrier = this.findSharedCarrier(cards);
-                    if (carrier) {
-                        carrier.keys = strip(carrier.keys || "") + encoded;
-                    }
-                }
-            } else {
-                const dedIdx = cards.findIndex(c => c && c.title === DEDICATED_CARD_TITLE);
-                if (dedIdx !== -1) {
-                    if (removeCardFn) {
-                        removeCardFn(dedIdx);
-                    } else {
-                        cards.splice(dedIdx, 1);
-                    }
-                }
-                const carrier = this.findSharedCarrier(cards);
-                if (carrier) {
-                    for (const c of cards) {
-                        if (c && c !== carrier && typeof c.keys === "string" && c.keys.includes(STAMP_START)) {
-                            c.keys = strip(c.keys);
-                        }
-                    }
-                    carrier.keys = strip(carrier.keys || "") + encoded;
-                }
-            }
-
-            return packet;
-        }
-
-        announce(spec, options = {}) {
-            if (!spec || typeof spec !== "object" || !spec.name) {
-                throw new Error("[AID-CSCP] announce() requires a spec object with a 'name' property");
-            }
-
-            const slotUid = options.slotUid || this.getSlotUid();
-            const turnKey = getTurnKey();
-            const phase = options.phase || "init";
-            const name = String(spec.name).toLowerCase().trim();
-            const version = spec.version ? String(spec.version).trim() : "1.0.0";
-            const buildType = spec.buildType ? String(spec.buildType).toLowerCase().trim() : "modular";
-            const provides = Array.isArray(spec.provides) && spec.provides.length > 0
-                ? spec.provides.map(p => String(p).toLowerCase().trim())
-                : [name];
-            const instanceId = spec.instanceId || slotUid;
-
-            const cmds = [];
-            if (spec.prefix) cmds.push(String(spec.prefix).trim());
-            if (Array.isArray(spec.aliases)) {
-                for (const al of spec.aliases) {
-                    const cleanAl = String(al).trim();
-                    if (cleanAl && !cmds.includes(cleanAl)) cmds.push(cleanAl);
-                }
-            }
-            if (Array.isArray(spec.commands)) {
-                for (const c of spec.commands) {
-                    const cleanC = String(c).trim();
-                    if (cleanC && !cmds.includes(cleanC)) cmds.push(cleanC);
-                }
-            }
-
-            let packet = this.read() || this.createEmptyPacket();
-            packet.slots ??= {};
-            packet.modules ??= {};
-            packet.order ??= [];
-            packet.lastOrder ??= [];
-            packet.owners ??= {};
-            packet.collisions ??= [];
-
-            const isRealHookPhase = (phase === "input" || phase === "context" || phase === "output");
-
-            if (isRealHookPhase && (packet.t !== turnKey || packet.p !== phase)) {
-                if ((packet.p === "input" || packet.p === "context" || packet.p === "output") && packet.order.length > 0) {
-                    packet.lastOrder = [...packet.order];
-                    if (packet.t !== turnKey) {
-                        const surviving = new Set(packet.lastOrder);
-                        for (const oldUid of Object.keys(packet.slots)) {
-                            if (!surviving.has(oldUid) && packet.slots[oldUid].lastSeenTurn !== turnKey) {
-                                delete packet.slots[oldUid];
-                            }
-                        }
-                        for (const [mKey, mVal] of Object.entries(packet.modules)) {
-                            if (mVal && mVal.slotUid && !packet.slots[mVal.slotUid]) {
-                                delete packet.modules[mKey];
-                            }
-                        }
-                    }
-                }
-                packet.t = turnKey;
-                packet.p = phase;
-                packet.order = [];
-                packet.owners = {};
-                packet.collisions = [];
-                for (const s of Object.values(packet.slots)) {
-                    s.active = [];
-                    s.yielded = [];
-                }
-            }
-
-            if (!packet.order.includes(slotUid)) {
-                packet.order.push(slotUid);
-            }
-
-            const slotRec = packet.slots[slotUid] ??= {
-                uid: slotUid,
-                name,
-                buildType,
-                modules: [],
-                provides: [],
-                active: [],
-                yielded: [],
-                cmds: [],
-                lastSeenTurn: turnKey
-            };
-            slotRec.lastSeenTurn = turnKey;
-            if (buildType === "all-in-one" || slotRec.buildType === "modular") {
-                slotRec.buildType = buildType;
-            }
-            if (!slotRec.modules.includes(name)) {
-                slotRec.modules.push(name);
-            }
-            for (const c of cmds) {
-                if (!slotRec.cmds.includes(c)) slotRec.cmds.push(c);
-            }
-            for (const cap of provides) {
-                if (!slotRec.provides.includes(cap)) slotRec.provides.push(cap);
-            }
-
-            const active = [];
-            const yielded = [];
-
-            for (const cap of provides) {
-                const existingOwner = packet.owners[cap];
-                const isConflict = existingOwner && (
-                    existingOwner.slotUid !== slotUid ||
-                    (spec.instanceId && existingOwner.instanceId !== instanceId)
-                );
-
-                if (isConflict) {
-                    yielded.push(cap);
-                    if (!slotRec.yielded.includes(cap)) slotRec.yielded.push(cap);
-                    const alreadyLogged = packet.collisions.some(
-                        c => c.capability === cap && c.primarySlot === existingOwner.slotUid && c.yieldedSlot === slotUid
-                    );
-                    if (!alreadyLogged) {
-                        packet.collisions.push({
-                            capability: cap,
-                            primarySlot: existingOwner.slotUid,
-                            primaryModule: existingOwner.moduleName,
-                            yieldedSlot: slotUid,
-                            yieldedModule: name
-                        });
-                    }
-                } else {
-                    packet.owners[cap] = {
-                        slotUid,
-                        moduleName: name,
-                        instanceId
-                    };
-                    active.push(cap);
-                    if (!slotRec.active.includes(cap)) slotRec.active.push(cap);
-                }
-            }
-
-            packet.modules[name] = {
-                name,
-                version,
-                buildType,
-                slotUid,
-                gitHash: spec.gitHash || null,
-                buildTime: spec.buildTime || null,
-                author: spec.author || null,
-                description: spec.description || null,
-                repository: spec.repository || null,
-                prefix: spec.prefix || null,
-                aliases: Array.isArray(spec.aliases) ? spec.aliases : [],
-                helpSummary: spec.helpSummary || null,
-                provides,
-                diagText: typeof spec.diag === "function"
-                    ? spec.diag()
-                    : (spec.diagText || `${name} v${version}${spec.gitHash && spec.gitHash !== "dev" ? ` (${spec.gitHash})` : ""} [${buildType}]`)
-            };
-
-            this.write(packet, { createCard: options.createCard });
-
-            const effectiveOrderList = (packet.lastOrder && packet.lastOrder.length > packet.order.length && packet.lastOrder.includes(slotUid))
-                ? packet.lastOrder
-                : packet.order;
-
-            return {
-                slotUid,
-                slotOrder: effectiveOrderList.indexOf(slotUid) + 1,
-                active,
-                yielded,
-                isColliding: yielded.length > 0 || packet.collisions.some(c => c.primarySlot === slotUid || c.yieldedSlot === slotUid),
-                collisions: packet.collisions,
-                packet
-            };
-        }
-    }
-
-    const cscpInstance = externalCSCP || (() => {
-        const bus = new CSCPBus();
-        bus.CSCPBus = CSCPBus;
-        bus.serialize = serialize;
-        bus.deserialize = deserialize;
-        bus.strip = strip;
-        bus.hasStamp = hasStamp;
-        bus.getTurnKey = getTurnKey;
-        bus.normalizeCardMode = normalizeCardMode;
-        return bus;
-    })();
-
-    if (typeof globalThis !== "undefined") {
-        globalThis.AID_CSCP = cscpInstance;
     }
 
     // ========================================================================
@@ -691,6 +127,22 @@
                     }
                 }
             }
+        }
+
+        /**
+         * Exports the CSCP client JS code as a 16-Variation-Selector (\uFE00..\uFE0F) DLL frame.
+         * @param {string} [customClientJs] Optional JS source override
+         * @returns {string}
+         */
+        exportClientDLL(customClientJs) {
+            if (customClientJs) {
+                const frame = this.cscp.encodeDLL(customClientJs);
+                this.cscp.setDLLFrame(frame);
+                return frame;
+            }
+            return typeof this.cscp.buildSelfDLLFrame === "function"
+                ? this.cscp.buildSelfDLLFrame()
+                : (this.cscp._dllFrame || "");
         }
 
         register(spec, options = {}) {
@@ -839,12 +291,112 @@
             return this;
         }
 
+        /**
+         * Handles standalone `/aid-modules` commands when AID-Modules runs in its own slot.
+         */
+        executeCommandString(rawInput) {
+            if (typeof rawInput !== "string") return null;
+            const trimmed = rawInput.trim().replace(/^>\s*(?:You\s+(?:say,?\s*["“]?)?)?/i, "").replace(/["”.!?\s]+$/, "");
+            if (!/^\/aid-modules?(?:\s|$)/i.test(trimmed)) return null;
+
+            const tokens = trimmed.split(/\s+/).slice(1);
+            const flags = { verbose: false, cscp: false, version: false, help: false, "card-mode": "" };
+            const operands = [];
+
+            for (let i = 0; i < tokens.length; i++) {
+                const t = tokens[i];
+                if (t === "-v" || t === "--verbose") flags.verbose = true;
+                else if (t === "--cscp") flags.cscp = true;
+                else if (t === "--version") flags.version = true;
+                else if (t === "-h" || t === "--help" || t === "-?") flags.help = true;
+                else if ((t === "-m" || t === "--card-mode") && tokens[i + 1]) {
+                    flags["card-mode"] = tokens[++i];
+                } else if (t.startsWith("--card-mode=")) {
+                    flags["card-mode"] = t.slice("--card-mode=".length);
+                } else {
+                    operands.push(t);
+                }
+            }
+
+            return this._runCliAction(flags, operands);
+        }
+
+        _runCliAction(flags, operands) {
+            const sub = (operands[0] || "").toLowerCase();
+            if (flags.help || sub === "help") {
+                return [
+                    "==================================================================",
+                    "  📦 AID-Modules & CSCP Command Reference",
+                    "==================================================================",
+                    "Usage: /aid-modules [-v, --verbose] [--cscp] [--card-mode <dedicated|shared>] [--version]",
+                    "Aliases: /aid-module",
+                    "Options:",
+                    "  -v, --verbose        Display full module metadata and CSCP slot waterfall",
+                    "  --cscp               Display CSCP cross-slot bus and carrier status",
+                    "  -m, --card-mode <m>  Set CSCP carrier mode: 'dedicated' (aliases: dashboard, visible)",
+                    "                       or 'shared' (aliases: piggyback, stealth, headless)",
+                    "  --version            Display aid-modules registry version and build timestamp",
+                    "  -h, --help           Display this manual",
+                    "Displays all active AMS & CSCP-compliant modules across all adventure slots.",
+                    "=================================================================="
+                ].join("\n");
+            }
+            if (flags.version || sub === "version") {
+                return `📦 aid-modules v${VERSION}${GIT_HASH !== "dev" ? ` (${GIT_HASH})` : ""} [${BUILD_TIME}] (CSCP v${this.cscp.version}.0)`;
+            }
+            if (flags["card-mode"]) {
+                const targetMode = String(flags["card-mode"]).toLowerCase().trim();
+                this.cscp.configure({ cardMode: targetMode });
+                const pkt = this.cscp.read() || this.cscp.createEmptyPacket();
+                pkt.mode = this.cscp._config.cardMode || "dedicated";
+                this.cscp.write(pkt, { createCard: pkt.mode === "dedicated" });
+                const desc = pkt.mode === "shared"
+                    ? "shared (Piggyback Zero-Width Stamp on existing configuration card)"
+                    : "dedicated (Dedicated 'Configure System Modules' dashboard card)";
+                return `📦 [AID-Modules CSCP]: Carrier mode switched to ${desc}.`;
+            }
+            return this.report({ verbose: Boolean(flags.verbose || flags.cscp) });
+        }
+
         hook(phase, inText, inStop) {
             this.sync(phase);
+            const st = getState();
+            if (phase === "input") {
+                if (st) delete st._aid_modules_cmd_out;
+                const cmdOut = this.executeCommandString(inText);
+                if (cmdOut !== null) {
+                    if (st) st._aid_modules_cmd_out = cmdOut;
+                    return inText;
+                }
+                return inText;
+            }
             if (phase === "context") {
+                if (st && st._aid_modules_cmd_out) {
+                    return ["", true];
+                }
                 return [inText, inStop];
             }
+            if (phase === "output") {
+                if (st && st._aid_modules_cmd_out) {
+                    const out = st._aid_modules_cmd_out;
+                    delete st._aid_modules_cmd_out;
+                    return `${out.trim()}\n`;
+                }
+                return inText;
+            }
             return inText;
+        }
+
+        input(inText) {
+            return this.hook("input", inText);
+        }
+
+        context(inText, inStop) {
+            return this.hook("context", inText, inStop);
+        }
+
+        output(inText) {
+            return this.hook("output", inText);
         }
 
         unregister(name) {
@@ -941,7 +493,7 @@
                         : (packet.order || []);
                     const allSlotUids = [...new Set([...orderedUids, ...Object.keys(packet.slots || {})])];
                     lines.push("------------------------------------------------------------------");
-                    lines.push(`  🔗 CSCP Bus: v${packet.v}.0 | Carrier: ${modeLabel}`);
+                    lines.push(`  🔗 CSCP Bus: v${packet.v}.0 | Carrier: ${modeLabel} | DLL Exported: ${Boolean(this.cscp._dllFrame) ? "Yes" : "No"}`);
                     lines.push(`  🌊 Slot Waterfall (${allSlotUids.length} slot${allSlotUids.length === 1 ? "" : "s"}):`);
                     allSlotUids.forEach((uid, idx) => {
                         const s = packet.slots && packet.slots[uid];
@@ -1001,42 +553,7 @@
                     "version": false,
                     "help|h|?": false
                 },
-                action: (flags, operands) => {
-                    const sub = (operands[0] || "").toLowerCase();
-                    if (flags.help || sub === "help") {
-                        return [
-                            "==================================================================",
-                            "  📦 AID-Modules & CSCP Command Reference",
-                            "==================================================================",
-                            "Usage: /aid-modules [-v, --verbose] [--cscp] [--card-mode <dedicated|shared>] [--version]",
-                            "Aliases: /aid-module",
-                            "Options:",
-                            "  -v, --verbose        Display full module metadata and CSCP slot waterfall",
-                            "  --cscp               Display CSCP cross-slot bus and carrier status",
-                            "  -m, --card-mode <m>  Set CSCP carrier mode: 'dedicated' (aliases: dashboard, visible)",
-                            "                       or 'shared' (aliases: piggyback, stealth, headless)",
-                            "  --version            Display aid-modules registry version and build timestamp",
-                            "  -h, --help           Display this manual",
-                            "Displays all active AMS & CSCP-compliant modules across all adventure slots.",
-                            "=================================================================="
-                        ].join("\n");
-                    }
-                    if (flags.version || sub === "version") {
-                        return `📦 aid-modules v${VERSION}${GIT_HASH !== "dev" ? ` (${GIT_HASH})` : ""} [${BUILD_TIME}] (CSCP v${CSCP_VERSION}.0)`;
-                    }
-                    if (flags["card-mode"]) {
-                        const targetMode = String(flags["card-mode"]).toLowerCase().trim();
-                        registry.cscp.configure({ cardMode: targetMode });
-                        const pkt = registry.cscp.read() || registry.cscp.createEmptyPacket();
-                        pkt.mode = registry.cscp._config.cardMode || "dedicated";
-                        registry.cscp.write(pkt, { createCard: pkt.mode === "dedicated" });
-                        const desc = pkt.mode === "shared"
-                            ? "shared (Piggyback Zero-Width Stamp on existing configuration card)"
-                            : "dedicated (Dedicated 'Configure System Modules' dashboard card)";
-                        return `📦 [AID-Modules CSCP]: Carrier mode switched to ${desc}.`;
-                    }
-                    return registry.report({ verbose: Boolean(flags.verbose || flags.cscp) });
-                }
+                action: (flags, operands) => registry._runCliAction(flags, operands)
             });
         }
     }
