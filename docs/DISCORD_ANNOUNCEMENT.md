@@ -32,12 +32,33 @@ https://github.com/viosca/aid-modules
 
 ---
 
-## Part 2: Suggested Edits for the Thread Original Post (OP)
+## Part 2: Improved Original Post (OP) for the Thread
 
-When updating the top post of the thread:
-1. Update version badge/text to **AMS v1.1.0 / CSCP v1.1.0**.
-2. Mention **Slot 1 Placement** for master discovery.
-3. Add reference to `/aid-modules -v` diagnostics.
+*Character count: ~1,860 characters (Discord limit: 2,000)*
+
+```markdown
+📦 **[RELEASE] AID-Modules v1.1.0 — Open Module Registry & Discovery for AI Dungeon (AMS v1.1.0 / CSCP v1.1.0)**
+
+Tired of multi-script adventures crashing with cryptic `ReferenceError`s or scripts colliding over player inputs? **AID-Modules** establishes an open standard for modular, zero-collision AI Dungeon QuickJS scripting!
+
+Place it in **Slot 1** (the top) of your Script Management run order to unlock transparent discovery, dependency validation, and cross-slot coordination across all scripts in your adventure.
+
+🌟 **Key Capabilities:**
+• **Zero Dependencies:** Ultra-lightweight and runs everywhere in the QuickJS sandbox with zero configuration.
+• **Cross-Slot Coordination (CSCP):** Coordinates multi-slot scenario architectures so complex scripts (like Entity-Cards and Inner-Entity) can negotiate capabilities and yield duplicates dynamically.
+• **Master /help Aggregation:** Automatically gathers slash commands and manuals from all active modules into a single, unified in-game `/help` directory.
+• **SemVer Dependency Checking:** Validate module requirements cleanly at runtime (`AID.has('getopt', '^1.0.0')`, `AID.require('my-lib')`).
+• **Upgrade Precedence:** If duplicate versions of a module are loaded across scenario slots, the newer version automatically takes precedence.
+• **In-Game Diagnostics:** Type `/aid-modules -v` at any time to inspect registered scripts, versions, authors, and active flavors.
+
+🔗 **Add to your Scenario (Script Loader):**
+https://play.aidungeon.com/script/jHwEbn7_bYGC/aid-modules?source=profile&tss_user=Random_Variable&tss_ct=scenario
+
+📖 **GitHub & Specifications:**
+• **Repository:** https://github.com/viosca/aid-modules
+• **AMS v1.1.0 Spec:** https://github.com/viosca/aid-modules/blob/main/SPECIFICATION.md
+• **CSCP v1.1.0 Spec:** https://github.com/viosca/aid-modules/blob/main/CSCP_SPECIFICATION.md
+```
 
 ---
 
